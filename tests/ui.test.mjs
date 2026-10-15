@@ -61,9 +61,6 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       `http://127.0.0.1:${server.address().port}/tests/ui-fixture.html`,
     );
     await page.waitForFunction(() => window.fixtureReady && !app.busy);
-    await page.waitForFunction(
-      () => document.querySelector(".qc-cover")?.naturalWidth > 0,
-    );
     const wait = () => page.waitForFunction(() => !app.busy);
     const tab = async (name) => {
       await page
@@ -71,9 +68,55 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
         .click();
       await wait();
     };
+    // Primeira tela: seleção de campanhas empilhadas, com data e descrição curta.
+    assert.equal(
+      await page.locator(".qc-picker h1").innerText(),
+      "Selecionar campanha",
+    );
+    assert.equal(await page.locator(".qc-campaign-row").count(), 1);
+    const pickerRow = await page.locator(".qc-campaign-row").innerText();
+    assert.ok(pickerRow.includes("Uma viagem estranha"));
+    assert.ok(pickerRow.includes("Era das Estações · 105 A.F."));
+    assert.ok(pickerRow.includes("memória"));
+    await page.locator('[data-action="open-campaign"]').click();
+    await wait();
+    await page.waitForFunction(
+      () => document.querySelector(".qc-cover")?.naturalWidth > 0,
+    );
     assert.equal(
       await page.locator(".qc-header h1").innerText(),
       "Uma viagem estranha",
+    );
+    // Sem cena escolhida o painel mostra a campanha inteira e o texto dela.
+    assert.equal(await page.locator('[data-scene-field="title"]').count(), 0);
+    assert.ok(
+      (await page.locator(".qc-detail").innerText()).includes(
+        "Texto da campanha",
+      ),
+    );
+    assert.ok((await page.locator(".qc-material h3").count()) > 0);
+    assert.ok((await page.locator(".qc-overview-card").count()) >= 3);
+    await page.screenshot({
+      path: resolve(root, "dist", "preview-overview-0.4.0.png"),
+    });
+    assert.equal(
+      await page.locator(".qc-material").evaluate((el) => el.innerText.includes("schema:")),
+      false,
+    );
+    assert.match(
+      await page.locator(".qc-scene-library").innerText(),
+      /Sem mapa · 8/,
+    );
+    await page
+      .locator(
+        '.qc-library-scene [data-action="select-scene"][data-scene="c01-memoria-sem-reflexo"]',
+      )
+      .click();
+    await wait();
+    assert.ok(
+      (await page.locator(".qc-scene-header small").innerText()).includes(
+        "CENA 01 · USO DA MESTRA",
+      ),
     );
     assert.equal(await page.locator('input[type="checkbox"]').count(), 0);
     assert.equal(
@@ -100,8 +143,8 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
         ),
     );
     const main = await page.locator(".qc-main").boundingBox(),
-      library = await page.locator(".qc-library").boundingBox();
-    assert.ok(library.y >= main.y + main.height - 1);
+      board = await page.locator(".qc-board").boundingBox();
+    assert.ok(board.y + board.height <= main.y + 1);
 
     await page.locator('[data-action="select-folder"]').selectOption("noatora");
     await wait();
@@ -287,13 +330,72 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
         campaign.scenes[2].presentation = "map";
       });
     });
-    const sceneOrder = await page.locator(".qc-step-number").allTextContents();
+    const sceneOrder = await page
+      .locator('.qc-board-map[data-map-drop="entrance"] .qc-board-scenes b')
+      .allTextContents();
     assert.deepEqual(sceneOrder.slice(0, 3), ["01", "02", "03"]);
 
-    await page.locator('[data-action="select-scene"]').first().click();
+    // Arrastar uma cena da biblioteca para um mapa do quadro, e de volta.
+    const loose = '.qc-library-scene[data-drag-scene="c04-rota-esquecida"]';
+    await page
+      .locator(loose)
+      .dragTo(page.locator('.qc-board-map[data-map-drop="lower"]'));
     await wait();
-    assert.ok(await page.locator(".qc-timeline-track").isVisible());
-    assert.ok((await page.locator(".qc-map-group").count()) >= 1);
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          app.campaign.scenes.find((row) => row.id === "c04-rota-esquecida")
+            .mapSceneIds,
+      ),
+      ["lower"],
+    );
+    assert.ok(
+      (
+        await page
+          .locator('.qc-board-map[data-map-drop="lower"] .qc-board-scenes')
+          .innerText()
+      ).includes("A rota esquecida"),
+    );
+    await page
+      .locator('.qc-board-map[data-map-drop="lower"] [data-drag-scene="c04-rota-esquecida"]')
+      .dragTo(page.locator(".qc-scene-library > header"));
+    await wait();
+    assert.deepEqual(
+      await page.evaluate(
+        () =>
+          app.campaign.scenes.find((row) => row.id === "c04-rota-esquecida")
+            .mapSceneIds,
+      ),
+      [],
+    );
+
+    await page.locator('.qc-board [data-action="select-scene"]').first().click();
+    await wait();
+    assert.ok(await page.locator(".qc-board").isVisible());
+    assert.ok((await page.locator(".qc-board-map").count()) >= 2);
+    // Nada do quadro pode vazar do próprio cartão (problema da 0.3).
+    assert.ok(
+      await page.evaluate(() =>
+        [...document.querySelectorAll(".qc-board-map")].every((card) => {
+          const box = card.getBoundingClientRect();
+          return [...card.querySelectorAll("button, img, strong")].every(
+            (child) => {
+              const inner = child.getBoundingClientRect();
+              return (
+                inner.left >= box.left - 1 &&
+                inner.right <= box.right + 1 &&
+                inner.bottom <= box.bottom + 1
+              );
+            },
+          );
+        }),
+      ),
+    );
+    assert.ok(
+      await page
+        .locator(".qc-shell")
+        .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+    );
     await page.locator(".qc-detail").evaluate((el) => (el.scrollTop = 0));
     for (const width of [1180, 900]) {
       await page.setViewportSize({ width, height: 900 });
@@ -310,7 +412,7 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
     }
     await page.setViewportSize({ width: 1180, height: 900 });
     await page.screenshot({
-      path: resolve(root, "dist", "preview-0.3.0.png"),
+      path: resolve(root, "dist", "preview-0.4.0.png"),
       fullPage: true,
     });
 
@@ -420,7 +522,7 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       scrollBefore,
     );
     assert.equal(await page.locator(".qc-area-marker").count(), 2);
-    assert.equal(await page.locator(".qc-area-shape").count(), 1);
+    assert.equal(await page.locator(".qc-review-canvas .qc-area-shape").count(), 1);
     await page.locator(".qc-area-card").nth(1).locator('[data-area-field="type"]').selectOption("puzzle");
     await page.locator(".qc-area-card").nth(1).locator('[data-area-field="environment"]').selectOption("shrine");
     await page.locator(".qc-area-card").nth(1).locator('[data-area-field="visualDescription"]').fill("Runas semelhantes cercam uma porta menor.");
@@ -442,9 +544,9 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
     await page.locator('[data-action="finish-polygon"]').click();
     await wait();
     assert.equal(await page.locator(".qc-area-marker").count(), 3);
-    assert.equal(await page.locator(".qc-area-shape").count(), 2);
+    assert.equal(await page.locator(".qc-review-canvas .qc-area-shape").count(), 2);
     await page.screenshot({
-      path: resolve(root, "dist", "preview-map-review-0.3.0.png"),
+      path: resolve(root, "dist", "preview-map-review-0.4.0.png"),
       fullPage: true,
     });
     await page.locator(".qc-area-card").first().locator('[data-action="area-scene"]').click();
@@ -465,7 +567,44 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       ),
     );
     await page.screenshot({
-      path: resolve(root, "dist", "preview-planner-0.3.0.png"),
+      path: resolve(root, "dist", "preview-planner-0.4.0.png"),
+      fullPage: true,
+    });
+
+    // Voltar à visão da campanha, à seleção e criar uma campanha nova.
+    await page.locator('[data-action="close-scene"]').first().click();
+    await wait();
+    assert.equal(await page.locator('[data-scene-field="title"]').count(), 0);
+    assert.ok(
+      (await page.locator(".qc-detail").innerText()).includes(
+        "VISÃO DA MESTRA",
+      ),
+    );
+    await page.locator('[data-action="close-campaign"]').click();
+    await wait();
+    await page.locator(".qc-new-campaign > summary").click();
+    await page.locator('[name="new-title"]').fill("Areia e sangue");
+    await page.locator('[name="new-year"]').fill("110 A.F.");
+    await page
+      .locator('[name="new-description"]')
+      .fill("Uma travessia pelo deserto.");
+    await page.getByRole("button", { name: "Criar campanha", exact: true }).click();
+    await wait();
+    assert.equal(
+      await page.locator(".qc-header h1").innerText(),
+      "Areia e sangue",
+    );
+    assert.equal(await page.locator(".qc-board").count(), 1);
+    await page.locator('[data-action="close-campaign"]').click();
+    await wait();
+    assert.equal(await page.locator(".qc-campaign-row").count(), 2);
+    assert.ok(
+      (await page.locator(".qc-campaign-list").innerText()).includes(
+        "Uma travessia pelo deserto.",
+      ),
+    );
+    await page.screenshot({
+      path: resolve(root, "dist", "preview-picker-0.4.0.png"),
       fullPage: true,
     });
     assert.deepEqual(errors, []);

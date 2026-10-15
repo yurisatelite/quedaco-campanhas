@@ -939,7 +939,7 @@
   }
 }
 
-/* 0.3 — mapas são contêineres; cenas formam uma linha do tempo horizontal. */
+/* 0.3 — cabeçalho, galeria e resumo de cena. */
 .qc-app .qc-header {
   min-height: 58px;
 }
@@ -954,108 +954,6 @@
 .qc-app .qc-map-mode > div {
   display: flex;
   gap: 4px;
-}
-.qc-app .qc-timeline {
-  flex: 0 0 auto;
-  display: grid;
-  gap: 8px;
-  min-height: 0;
-  padding: 10px 12px;
-  border: 1px solid #35505f;
-  border-radius: 10px;
-  background: #12212a;
-}
-.qc-app .qc-timeline > header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 12px;
-}
-.qc-app .qc-timeline-track {
-  display: flex;
-  gap: 12px;
-  max-height: 230px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 0 2px 8px;
-  scroll-snap-type: x proximity;
-  scrollbar-gutter: stable;
-}
-.qc-app .qc-timeline .qc-map-group {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: 168px auto;
-  margin: 0;
-  border: 2px solid #4781a0;
-  background: #142b38;
-  scroll-snap-align: start;
-  overflow: visible;
-}
-.qc-app .qc-timeline .qc-map-group.is-loose {
-  border-color: #a87945;
-  background: #33281e;
-}
-.qc-app .qc-timeline .qc-map-group > header {
-  width: 168px;
-  display: grid;
-  align-content: start;
-  gap: 7px;
-  padding: 9px;
-  background: #1b4053;
-  border-radius: 5px 0 0 5px;
-}
-.qc-app .qc-timeline .qc-map-group.is-loose > header {
-  background: #5a3d25;
-}
-.qc-app .qc-timeline .qc-map-group > header > img {
-  width: 100%;
-  height: 64px;
-}
-.qc-app .qc-timeline .qc-map-group > header span {
-  font-size: 11px;
-  color: #bdd1db;
-}
-.qc-app .qc-map-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.qc-app .qc-map-actions button {
-  min-height: 26px;
-  padding: 3px 6px;
-  font-size: 10px;
-}
-.qc-app .qc-timeline .qc-map-group ol {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-  min-width: 115px;
-  padding: 8px;
-}
-.qc-app .qc-timeline .qc-map-group li {
-  flex: 0 0 230px;
-  border: 0;
-  padding: 0;
-}
-.qc-app .qc-timeline .qc-step-number {
-  z-index: 2;
-  left: 7px;
-  top: 7px;
-  background: #24604f;
-  border-color: #79bda7;
-}
-.qc-app .qc-timeline .qc-scene-row {
-  height: 100%;
-  padding: 7px 7px 7px 36px;
-  border: 1px solid #3f7d69;
-  background: #19372f;
-}
-.qc-app .qc-timeline .is-active > .qc-scene-row {
-  border-color: #9de5c7;
-  box-shadow: 0 0 0 2px rgba(126, 214, 179, 0.2);
-}
-.qc-app .qc-timeline .qc-scene-main {
-  align-items: flex-start;
 }
 .qc-app .qc-summary-chips {
   display: flex !important;
@@ -1074,21 +972,6 @@
   font-size: 9px;
   line-height: 1.3;
 }
-.qc-app .qc-legend {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  color: #b7cad4;
-  font-size: 11px;
-}
-.qc-app .qc-legend i {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-}
-.qc-app .qc-legend .is-map { background: #4781a0; }
-.qc-app .qc-legend .is-scene { background: #3f8d72; }
-.qc-app .qc-legend .is-action { background: #a87945; }
 .qc-app .qc-main {
   grid-template-columns: minmax(285px, 0.62fr) minmax(0, 1.55fr);
 }
@@ -1179,7 +1062,463 @@
   overflow-wrap: normal;
 }
 @media (max-width: 900px) {
-  .qc-app .qc-timeline-track { max-height: 215px; }
   .qc-app .qc-main { grid-template-columns: minmax(240px, 0.65fr) minmax(0, 1fr); }
   .qc-app .qc-folder-content { grid-template-columns: 1fr; }
+}
+
+/* 0.4 — seleção de campanha, quadro de mapas no topo, biblioteca de cenas e visão da campanha.
+   Espaçamento em 4/8px; a janela rola na vertical para o quadro nunca ser cortado. */
+.qc-app .qc-shell {
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+.qc-app .qc-shell > * {
+  flex-shrink: 0;
+}
+.qc-app .qc-main {
+  flex: 1 0 560px;
+  min-height: 560px;
+}
+.qc-app .qc-header > .qc-back {
+  align-self: center;
+}
+
+/* Seleção */
+.qc-app .qc-picker-header {
+  display: grid;
+  gap: 4px;
+}
+.qc-app .qc-picker-header p {
+  color: #afc2cc;
+}
+.qc-app .qc-campaign-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+}
+.qc-app .qc-shell .qc-campaign-row {
+  display: grid;
+  grid-template-columns: 144px minmax(0, 1fr);
+  align-items: start;
+  justify-content: stretch;
+  gap: 16px;
+  width: 100%;
+  padding: 12px;
+  text-align: left;
+  border-radius: 10px;
+  background: #182a35;
+}
+.qc-app .qc-campaign-row img {
+  width: 144px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #3c5666;
+}
+.qc-app .qc-campaign-row > span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.qc-app .qc-campaign-row strong {
+  font-size: 18px;
+  line-height: 1.3;
+}
+.qc-app .qc-shell .qc-campaign-date {
+  color: #8fd0bd;
+  font-weight: 600;
+}
+.qc-app .qc-campaign-description {
+  font-size: 13px;
+  color: #d3e1e7;
+  line-height: 1.5;
+}
+.qc-app .qc-new-campaign {
+  padding: 12px;
+  border: 1px dashed #4d7180;
+  border-radius: 10px;
+  background: #142430;
+}
+.qc-app .qc-new-campaign[open] > * + * {
+  margin-top: 8px;
+}
+.qc-app .qc-file-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #afc2cc;
+}
+.qc-app .qc-shell .qc-file-button input {
+  width: auto;
+  height: auto;
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+/* Quadro de mapas */
+.qc-app .qc-board {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #35505f;
+  border-radius: 10px;
+  background: #12212a;
+}
+.qc-app .qc-board > header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.qc-app .qc-board > header > div {
+  display: grid;
+  gap: 4px;
+}
+.qc-app .qc-board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  align-items: start;
+}
+.qc-app .qc-board-map {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 2px solid #355f75;
+  border-radius: 8px;
+  background: #142b38;
+}
+.qc-app .qc-board-map.is-active {
+  border-color: #8ed5bb;
+}
+.qc-app .qc-board-map.is-drop-target {
+  border-color: #e0b070;
+  background: #1f3440;
+}
+.qc-app .qc-board-thumb {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #0d171e;
+}
+.qc-app .qc-board-thumb > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 0;
+}
+.qc-app .qc-board-thumb .qc-area-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.qc-app .qc-board-room {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: rgba(17, 26, 34, 0.85);
+  border: 1px solid #8ed5bb;
+  color: #e8fff6;
+  font-size: 9px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.qc-app .qc-board-map > header {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.qc-app .qc-board-map > header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.qc-app .qc-board-scenes {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  padding: 0;
+  min-height: 32px;
+}
+.qc-app .qc-board-scenes > li {
+  min-width: 0;
+  cursor: grab;
+}
+.qc-app .qc-shell .qc-board-scenes button {
+  display: flex;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  text-align: left;
+  font-size: 12px;
+  background: #19372f;
+  border-color: #3f7d69;
+}
+.qc-app .qc-board-scenes button span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qc-app .qc-board-scenes b {
+  flex: 0 0 auto;
+  color: #8fd0bd;
+}
+.qc-app .qc-shell .qc-board-scenes .is-active button {
+  background: #275249;
+  border-color: #9de5c7;
+}
+.qc-app .qc-board-empty {
+  display: grid;
+  place-items: center;
+  min-height: 32px;
+  border: 1px dashed #476a7a;
+  border-radius: 6px;
+  color: #8fa7b3;
+  font-size: 11px;
+  cursor: default !important;
+}
+.qc-app .qc-board-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+.qc-app .qc-shell .qc-board-actions button {
+  min-height: 28px;
+  padding: 4px;
+  font-size: 11px;
+}
+
+/* Biblioteca de cenas */
+.qc-app .qc-scene-library {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 8px;
+  border: 1px solid #3c5d6b;
+  border-radius: 8px;
+  background: #192e39;
+}
+.qc-app .qc-scene-library.is-drop-target {
+  border-color: #e0b070;
+}
+.qc-app .qc-scene-library > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.qc-app .qc-scene-library > header > div {
+  display: grid;
+  gap: 4px;
+}
+.qc-app .qc-scene-library > p {
+  font-size: 12px;
+  color: #9fb5c3;
+}
+.qc-app .qc-library-group > ol {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  padding: 8px 0 0;
+}
+.qc-app .qc-library-scene {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+  align-items: stretch;
+  cursor: grab;
+}
+.qc-app .qc-shell .qc-library-main {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  justify-content: stretch;
+  gap: 8px;
+  padding: 4px 8px;
+  text-align: left;
+}
+.qc-app .qc-library-main > b {
+  color: #8fd0bd;
+  font-size: 12px;
+}
+.qc-app .qc-library-main > span {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+.qc-app .qc-library-main small {
+  font-size: 10px;
+}
+.qc-app .qc-library-main strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.qc-app .qc-shell .qc-library-scene.is-active .qc-library-main {
+  background: #275249;
+  border-color: #9de5c7;
+}
+.qc-app .qc-library-move {
+  display: grid;
+  gap: 4px;
+}
+.qc-app .qc-shell .qc-library-move button {
+  min-height: 0;
+  height: 100%;
+  padding: 0 8px;
+  font-size: 11px;
+}
+.qc-app .qc-place {
+  max-width: 96px;
+  padding: 2px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid #476a7a;
+  border-radius: 999px;
+  font-size: 10px;
+  color: #bdd1db;
+  background: #142730;
+}
+.qc-app .qc-place.is-loose {
+  border-color: #a87945;
+  color: #f0c890;
+}
+.qc-app .qc-place.is-map {
+  border-color: #4781a0;
+}
+
+/* Visão da campanha */
+.qc-app .qc-scene-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.qc-app .qc-scene-header > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.qc-app .qc-overview-date {
+  color: #8fd0bd;
+  font-size: 13px;
+  font-weight: 600;
+}
+.qc-app .qc-shell .qc-overview-description {
+  margin-bottom: 12px;
+  color: #d3e1e7;
+}
+.qc-app .qc-overview-block {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.qc-app .qc-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.qc-app .qc-overview-card {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #304856;
+  border-radius: 8px;
+  background: #182a35;
+}
+.qc-app .qc-overview-card img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 0;
+}
+.qc-app .qc-overview-card > span {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+}
+.qc-app .qc-overview-card :is(strong, small) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qc-app .qc-overview-card strong {
+  font-size: 13px;
+}
+.qc-app .qc-overview-card small {
+  font-size: 11px;
+}
+.qc-app .qc-shell .qc-overview-note {
+  color: #8fd0bd;
+}
+.qc-app .qc-shell .qc-overview-card button {
+  min-height: 28px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+.qc-app .qc-material {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid #304856;
+  border-radius: 8px;
+  background: #182a35;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.qc-app .qc-shell .qc-material :is(h3, h4) {
+  margin-top: 8px;
+}
+.qc-app .qc-shell .qc-material ul {
+  padding-left: 16px;
+}
+.qc-app .qc-material table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  font-size: 12px;
+  background: none;
+  border: 0;
+}
+.qc-app .qc-material :is(th, td) {
+  padding: 4px 8px;
+  border: 1px solid #304856;
+  text-align: left;
+  vertical-align: top;
+}
+.qc-app .qc-material th {
+  background: #1d3441;
+}
+.qc-app .qc-campaign-info .qc-fields-row {
+  margin: 8px 0;
+}
+.qc-app .qc-board-grid > .qc-empty {
+  grid-column: 1 / -1;
 }

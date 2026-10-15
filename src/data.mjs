@@ -310,6 +310,12 @@ export function normalizeCampaign(value) {
           Boolean(source.mapFolderId) ||
           Object.keys(source.mapReviews || {}).length > 0,
     cover: text(source.cover, DEFAULT_COVER),
+    description: text(
+      source.description,
+      source.id === "noatora-a-garra-ausente"
+        ? "Aventura inicial: o grupo atravessa uma memória e desperta num tempo que não é o seu."
+        : "",
+    ),
     resourceProfiles: (Array.isArray(source.resourceProfiles)
       ? source.resourceProfiles
       : []

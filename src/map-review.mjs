@@ -85,7 +85,7 @@ const optionList = (options, current) =>
     )
     .join("");
 
-function areaShape(area, index) {
+export function areaShape(area, index) {
   const vertices = area.vertices?.length
     ? area.vertices
     : [{ x: area.x || 0, y: area.y || 0 }];

@@ -18,6 +18,7 @@ import {
   applyStoredSceneFx,
 } from "./fxmaster.mjs";
 import { campaignFromMarkdown, enrichScenes } from "./campaign-document.mjs";
+import { normalizeCampaign } from "./data.mjs";
 import {
   questAPI,
   createSceneTask,
@@ -42,7 +43,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     this.selectedSceneId = "";
     this.busy = false;
     this.detailTab = "roteiro";
-    this.galleryOpen = true;
+    this.galleryOpen = false;
     this.mapSearch = "";
     this.drawMode = "point";
     this.pointType = "exploration";
@@ -56,22 +57,14 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     return listCampaigns(game);
   }
   get campaign() {
-    return (
-      this.campaigns.find((entry) => entry.id === this.campaignId) ??
-      this.campaigns[0] ??
-      null
-    );
+    return this.campaigns.find((entry) => entry.id === this.campaignId) ?? null;
   }
   get selectedScene() {
+    // Sem cena escolhida o painel mostra a visão da campanha, não a primeira cena.
     return (
       this.campaign?.scenes.find(
         (entry) => entry.id === this.selectedSceneId,
-      ) ??
-      this.campaign?.scenes.find(
-        (entry) => entry.id === this.campaign?.currentSceneId,
-      ) ??
-      this.campaign?.scenes[0] ??
-      null
+      ) ?? null
     );
   }
 
@@ -108,10 +101,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     if (!game.user?.isGM)
       return "<p>O administrador de campanhas é uma ferramenta da Mestra.</p>";
     if (!this.resourcesInitialized) await this.prepareCatalog();
-    const campaign = this.campaign;
-    if (!campaign) return "<p>Nenhuma campanha disponível.</p>";
-    this.campaignId = campaign.id;
-    this.selectedSceneId = this.selectedScene?.id || campaign.currentSceneId;
+    this.selectedSceneId = this.selectedScene?.id || "";
     return renderWorkspace(this, game);
   }
 
@@ -119,13 +109,23 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     content.innerHTML = result;
   }
 
+  /** Abre a campanha que já usa este mapa; sem vínculo, fica na seleção. */
+  enterCampaignForMap(mapId) {
+    if (this.campaign || !mapId) return;
+    const campaign = this.campaigns.find(
+      (entry) =>
+        entry.scenes.some((scene) => scene.mapSceneIds.includes(mapId)) ||
+        entry.mapReviews?.[mapId],
+    );
+    if (campaign) this.campaignId = campaign.id;
+  }
+
   captureScroll() {
     const value = (selector) => this.element?.querySelector(selector)?.scrollTop || 0;
     return {
       scenes: value(".qc-scenes"),
       detail: value(".qc-detail"),
-      library: value(".qc-library"),
-      timeline: this.element?.querySelector(".qc-timeline-track")?.scrollLeft || 0,
+      shell: value(".qc-shell"),
     };
   }
 
@@ -134,13 +134,11 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     for (const [key, selector] of [
       ["scenes", ".qc-scenes"],
       ["detail", ".qc-detail"],
-      ["library", ".qc-library"],
+      ["shell", ".qc-shell"],
     ]) {
       const element = this.element?.querySelector(selector);
       if (element) element.scrollTop = state[key] || 0;
     }
-    const timeline = this.element?.querySelector(".qc-timeline-track");
-    if (timeline) timeline.scrollLeft = state.timeline || 0;
   }
 
   async renderPreservingScroll() {
@@ -207,6 +205,18 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     root.addEventListener(
       "dragstart",
       (event) => {
+        const sceneRow = event.target.closest?.("[data-drag-scene]");
+        if (sceneRow && event.dataTransfer) {
+          event.dataTransfer.setData(
+            "text/plain",
+            JSON.stringify({
+              type: "QuedacoCampaignScene",
+              sceneId: sceneRow.dataset.dragScene,
+            }),
+          );
+          event.dataTransfer.effectAllowed = "move";
+          return;
+        }
         const item = event.target.closest?.("[data-item-uuid]");
         if (item && event.dataTransfer) {
           event.dataTransfer.setData(
@@ -239,17 +249,31 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       (event) => {
         if (
           event.target.closest?.(
-            "[data-profile-id], [data-resource-drop], [data-resource-profile]",
+            "[data-profile-id], [data-resource-drop], [data-resource-profile], [data-map-drop]",
           )
         )
           event.preventDefault();
+        const zone = event.target.closest?.("[data-map-drop]");
+        for (const element of root.querySelectorAll(".is-drop-target"))
+          if (element !== zone) element.classList.remove("is-drop-target");
+        zone?.classList.add("is-drop-target");
+      },
+      { signal },
+    );
+    root.addEventListener(
+      "dragend",
+      () => {
+        for (const element of root.querySelectorAll(".is-drop-target"))
+          element.classList.remove("is-drop-target");
       },
       { signal },
     );
     root.addEventListener(
       "drop",
       (event) =>
-        void (event.target.closest?.("[data-resource-profile]")
+        void (event.target.closest?.("[data-map-drop]")
+          ? this.dropScene(event)
+          : event.target.closest?.("[data-resource-profile]")
           ? this.dropResourceProfile(event)
           : event.target.closest?.("[data-profile-id]")
             ? this.dropNpcProfile(event)
@@ -469,7 +493,29 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     return this.prepareDocument(data.uuid, target.dataset.resourceDrop);
   }
 
+  /** Soltar uma cena num mapa do quadro atribui; soltar na biblioteca retira o mapa. */
+  async dropScene(event) {
+    const target = event.target.closest?.("[data-map-drop]");
+    let data;
+    try {
+      data = JSON.parse(event.dataTransfer?.getData("text/plain") || "{}");
+    } catch {
+      return;
+    }
+    if (data.type !== "QuedacoCampaignScene" || !data.sceneId) return;
+    event.preventDefault();
+    const mapId = target.dataset.mapDrop;
+    return this.mutate((campaign) => {
+      const scene = campaign.scenes.find((row) => row.id === data.sceneId);
+      if (!scene) return;
+      scene.mapSceneIds = mapId ? [mapId] : [];
+      if (mapId) scene.presentation = "map";
+      this.selectedSceneId = scene.id;
+    });
+  }
+
   async followMap(mapId, sceneId = "") {
+    if (!this.campaign) return;
     const candidates = [this.campaign, ...this.campaigns].filter(Boolean);
     const campaign = candidates.find((campaign) =>
       campaign.scenes.some((scene) => scene.mapSceneIds.includes(mapId)),
@@ -1140,6 +1186,25 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
         else scene.roster.push(replacement);
       });
     }
+    if (action === "open-campaign") {
+      this.campaignId = button.dataset.campaign;
+      this.selectedSceneId = "";
+      this.detailTab = "roteiro";
+      return this.render(true);
+    }
+    if (action === "close-campaign")
+      return this.mutate(() => {
+        this.campaignId = "";
+        this.selectedSceneId = "";
+        this.reviewMapId = "";
+      });
+    if (action === "close-scene")
+      return this.mutate(() => {
+        this.selectedSceneId = "";
+        this.detailTab = "roteiro";
+        this.reviewMapId = "";
+      });
+    if (action === "create-campaign") return this.createCampaign();
     if (action === "select-campaign-card") {
       return this.mutate(() => {
         this.campaignId = button.dataset.campaign;
@@ -1270,6 +1335,34 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       });
   }
 
+  async createCampaign() {
+    const value = (name) =>
+      this.element.querySelector(`[name="${name}"]`)?.value.trim() || "";
+    const title = value("new-title"),
+      material = value("new-material");
+    if (!title && !material)
+      return ui.notifications.warn("Dê um nome à campanha ou cole o texto dela.");
+    try {
+      const campaign = material
+        ? campaignFromMarkdown(material, title || "Campanha sem nome")
+        : normalizeCampaign({ title, scenes: [], usesMaps: true });
+      if (title) campaign.title = title;
+      campaign.usesMaps = true;
+      campaign.description = value("new-description");
+      campaign.date.year = value("new-year");
+      campaign.date.era = value("new-era");
+      await this.catalog.load();
+      applyResourceMatches(campaign, this.catalog.entries);
+      await saveCampaigns(game, [campaign]);
+      this.campaignId = campaign.id;
+      this.selectedSceneId = "";
+      await this.render(true);
+    } catch (error) {
+      console.error(MODULE_ID, error);
+      ui.notifications.error(error.message || "Não foi possível criar a campanha.");
+    }
+  }
+
   async change(event) {
     const target = event.target,
       action = target.dataset.action;
@@ -1366,6 +1459,10 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     if (action === "edit-title")
       return this.mutate((campaign) => {
         campaign.title = target.value.trim() || "Campanha sem nome";
+      });
+    if (action === "edit-description")
+      return this.mutate((campaign) => {
+        campaign.description = target.value.trim();
       });
     if (action === "edit-era")
       return this.mutate((campaign) => {

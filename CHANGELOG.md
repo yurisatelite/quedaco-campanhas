@@ -1,5 +1,17 @@
 # Histórico
 
+## 0.4.0 — Seleção de campanha, quadro de mapas e biblioteca de cenas
+
+- Nova primeira tela **Selecionar campanha**: campanhas empilhadas, cada uma com capa, nome, data (era · ano), descrição curta e contagens.
+- **Nova campanha** direto na seleção: nome, data, era, descrição e texto (colado ou importado de .md/.txt). Sem texto, nasce vazia para preencher depois.
+- Topo da campanha agora mostra **somente os mapas**, em grade que quebra linha (sem rolagem lateral nem conteúdo vazando dos cartões). Cada mapa mostra a miniatura com as salas desenhadas e numeradas, as cenas já atribuídas e os botões Abrir, Salas e + Cena.
+- Cenas saíram do topo: ficam na **biblioteca**, abaixo da galeria de mapas, separadas em *Sem mapa*, *Interlúdios com imagem* e *Já nos mapas*, com ↑/↓ para a ordem.
+- **Arrastar uma cena** da biblioteca para um mapa do quadro atribui; arrastar de volta para a biblioteca retira o mapa.
+- O painel **Cena NN · uso da Mestra** só aparece ao clicar numa cena. Sem cena escolhida, o painel mostra a **visão da campanha**: NPCs, ameaças, itens, tokens preparados (com as cenas onde aparecem) e o texto da campanha formatado. “← Visão da campanha” e “← Campanhas” voltam.
+- Dados e texto da campanha (nome, ano, era, regiões, descrição, capa, cópia de trabalho, original) passaram para “Editar dados e texto da campanha” na visão da campanha.
+- A janela rola na vertical; a área de trabalho mantém altura mínima de 560px.
+- Campanha ganha o campo `description`; a aventura inicial recebe uma descrição sem spoiler.
+
 ## 0.3.0 — Salas desenháveis e memória local
 
 - Planejamento por ponto, retângulo ou polígono diretamente sobre a imagem do mapa.

@@ -23,13 +23,19 @@ export async function openCampaignManager(options = {}) {
     return ui.notifications.error(error.message);
   }
   if (app?.rendered) {
-    if (options.mapId) app.reviewMapId = options.mapId;
+    if (options.mapId) {
+      app.reviewMapId = options.mapId;
+      app.enterCampaignForMap(options.mapId);
+    }
     if (options.planner) app.detailTab = "mapa";
     app.render(false);
     return app.bringToFront();
   }
   app = new CampaignsApp();
-  if (options.mapId) app.reviewMapId = options.mapId;
+  if (options.mapId) {
+    app.reviewMapId = options.mapId;
+    app.enterCampaignForMap(options.mapId);
+  }
   if (options.planner) app.detailTab = "mapa";
   return app.render(true);
 }
