@@ -1,5 +1,5 @@
 export const MODULE_ID = "quedaco-campanhas";
-export const CAMPAIGN_SCHEMA = "quedaco-campanhas/v2";
+export const CAMPAIGN_SCHEMA = "quedaco-campanhas/v3";
 export const DEFAULT_COVER =
   "modules/quedaco-campanhas/assets/viagem-estranha.svg";
 export const SCENE_TYPES = Object.freeze([
@@ -57,6 +57,7 @@ export const NOATORA_CAMPAIGN = Object.freeze({
   id: "noatora-a-garra-ausente",
   title: "Noátorá: A Garra Ausente",
   status: "draft",
+  usesMaps: true,
   regions: ["Törmund", "Noátorá"],
   date: {
     era: "Era das Estações",
@@ -174,6 +175,12 @@ export const clone = (value) =>
     : JSON.parse(JSON.stringify(value));
 const text = (value, fallback = "") => String(value ?? fallback);
 const normalizedScene = (entry, index) => ({
+  mapAreaRefs: (Array.isArray(entry?.mapAreaRefs) ? entry.mapAreaRefs : [])
+    .map((row) => ({
+      mapId: text(row?.mapId),
+      areaId: text(row?.areaId),
+    }))
+    .filter((row) => row.mapId && row.areaId),
   resourceRefs: (Array.isArray(entry?.resourceRefs) ? entry.resourceRefs : [])
     .map((row) => ({
       id: text(row?.id),
@@ -296,6 +303,12 @@ export function normalizeCampaign(value) {
     )
       ? "Uma viagem estranha"
       : text(source.title, "Campanha sem nome"),
+    usesMaps:
+      typeof source.usesMaps === "boolean"
+        ? source.usesMaps
+        : scenes.some((scene) => scene?.mapSceneIds?.length) ||
+          Boolean(source.mapFolderId) ||
+          Object.keys(source.mapReviews || {}).length > 0,
     cover: text(source.cover, DEFAULT_COVER),
     resourceProfiles: (Array.isArray(source.resourceProfiles)
       ? source.resourceProfiles
@@ -328,19 +341,101 @@ export function normalizeCampaign(value) {
                 "challenge",
                 "exploration",
                 "secret",
+                "social",
+                "narrative",
               ].includes(point?.type)
                 ? point.type
                 : "exploration",
+              shape: ["point", "rect", "polygon"].includes(point?.shape)
+                ? point.shape
+                : "point",
               x: Math.max(0, Math.min(100, Number(point?.x) || 0)),
               y: Math.max(0, Math.min(100, Number(point?.y) || 0)),
+              vertices: (
+                Array.isArray(point?.vertices) && point.vertices.length
+                  ? point.vertices
+                  : [{ x: point?.x, y: point?.y }]
+              ).map((vertex) => ({
+                x: Math.max(0, Math.min(100, Number(vertex?.x) || 0)),
+                y: Math.max(0, Math.min(100, Number(vertex?.y) || 0)),
+              })),
               title: text(point?.title, "Ponto de interesse"),
+              source: text(point?.source),
+              sourceId: text(point?.sourceId),
               description: text(point?.description),
+              visualDescription: text(
+                point?.visualDescription,
+                point?.description,
+              ),
+              gmNotes: text(point?.gmNotes),
+              environment: [
+                "unknown",
+                "hall",
+                "corridor",
+                "forge",
+                "shrine",
+                "quarters",
+                "storage",
+                "prison",
+                "laboratory",
+                "cave",
+                "water",
+                "bridge",
+              ].includes(point?.environment)
+                ? point.environment
+                : "unknown",
+              status: ["draft", "suggested", "accepted", "rejected"].includes(
+                point?.status,
+              )
+                ? point.status
+                : "draft",
+              suggestion: {
+                narrativeFunction: text(
+                  point?.suggestion?.narrativeFunction,
+                ),
+                narration: text(point?.suggestion?.narration),
+                challenge: text(point?.suggestion?.challenge),
+                threats: text(point?.suggestion?.threats),
+                loot: text(point?.suggestion?.loot),
+                secret: text(point?.suggestion?.secret),
+                source: text(point?.suggestion?.source),
+              },
+              feedback: ["accepted", "rejected"].includes(point?.feedback)
+                ? point.feedback
+                : "",
+              feedbackId: text(point?.feedbackId),
               sceneId: text(point?.sceneId),
             }),
           ),
         },
       ]),
     ),
+    learning: {
+      samples: (
+        Array.isArray(source.learning?.samples) ? source.learning.samples : []
+      )
+        .slice(-500)
+        .map((sample, index) => ({
+          id: text(sample?.id, `sample-${index + 1}`),
+          createdAt: text(sample?.createdAt),
+          decision: sample?.decision === "rejected" ? "rejected" : "accepted",
+          type: text(sample?.type, "exploration"),
+          environment: text(sample?.environment, "unknown"),
+          visualTerms: (Array.isArray(sample?.visualTerms)
+            ? sample.visualTerms
+            : []
+          ).map(String),
+          suggestion: {
+            narrativeFunction: text(sample?.suggestion?.narrativeFunction),
+            narration: text(sample?.suggestion?.narration),
+            challenge: text(sample?.suggestion?.challenge),
+            threats: text(sample?.suggestion?.threats),
+            loot: text(sample?.suggestion?.loot),
+            secret: text(sample?.suggestion?.secret),
+            source: text(sample?.suggestion?.source),
+          },
+        })),
+    },
     status: ["draft", "active", "completed"].includes(source.status)
       ? source.status
       : "draft",
@@ -383,6 +478,8 @@ export function normalizeCampaign(value) {
     scenes: scenes.map(normalizedScene),
   };
   for (const scene of result.scenes) {
+    if (result.usesMaps && scene.mapSceneIds.length > 1)
+      scene.mapSceneIds = scene.mapSceneIds.slice(0, 1);
     scene.roster = scene.roster.flatMap((row) => {
       if (!row.profileId) return [row];
       const profile = result.npcProfiles.find(

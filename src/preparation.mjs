@@ -8,18 +8,28 @@ export const escapeHtml = (value) =>
   );
 
 export function mapSequence(campaign) {
+  if (!campaign.usesMaps)
+    return [
+      {
+        mapId: "",
+        scenes: campaign.scenes.map((scene, index) => ({ scene, index })),
+      },
+    ];
   const groups = [];
+  const byMap = new Map();
   for (const [index, scene] of campaign.scenes.entries()) {
-    for (const mapId of scene.presentation === "image"
-      ? [""]
-      : scene.mapSceneIds.length
-        ? scene.mapSceneIds
-        : [""]) {
-      if (groups.at(-1)?.mapId !== mapId) groups.push({ mapId, scenes: [] });
-      groups.at(-1).scenes.push({ scene, index });
+    const mapId = scene.mapSceneIds[0] || "";
+    if (!byMap.has(mapId)) {
+      const group = { mapId, scenes: [] };
+      byMap.set(mapId, group);
+      groups.push(group);
     }
+    byMap.get(mapId).scenes.push({ scene, index });
   }
-  return groups;
+  return [
+    ...groups.filter((group) => group.mapId),
+    ...groups.filter((group) => !group.mapId),
+  ];
 }
 
 export function renderMapSequence(

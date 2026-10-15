@@ -33,22 +33,37 @@ export async function openFxEditor(map, kind = "particles") {
     throw Error("Somente a Mestra pode editar efeitos.");
   if (!map) throw Error("Escolha um mapa para editar seus efeitos.");
   if (globalThis.canvas?.scene?.id !== map.id) await map.view();
-  const controls = globalThis.ui?.controls?.controls;
-  const groups = Array.isArray(controls)
-    ? controls
-    : Object.values(controls || {});
+  const controlsUi = globalThis.ui?.controls,
+    values = (collection) =>
+      collection instanceof Map
+        ? Array.from(collection.values())
+        : Array.isArray(collection)
+          ? collection
+          : Object.values(collection || {}),
+    controls = controlsUi?.controls,
+    groups = values(controls);
   const group = groups.find((group) =>
     ["effects", "fxmaster"].includes(group.name),
   );
-  const tools = Array.isArray(group?.tools)
-    ? group.tools
-    : Object.values(group?.tools || {});
+  const tools = values(group?.tools);
+  const toolName = kind === "filters" ? "filters" : "particle-effects";
   const tool = tools.find(
-    (tool) =>
-      tool.name === (kind === "filters" ? "filters" : "particle-effects"),
+    (tool) => tool.name === toolName,
   );
   if (typeof tool?.onChange === "function") return tool.onChange(null, true);
   if (typeof tool?.onClick === "function") return tool.onClick();
+  // Foundry mais novo pode materializar ferramentas apenas após ativar o grupo.
+  if (typeof controlsUi?.initialize === "function") {
+    await controlsUi.initialize({ control: group?.name || "effects", tool: toolName });
+    const element = controlsUi.element?.[0] || controlsUi.element || document;
+    const button = element?.querySelector?.(
+      `[data-control="${group?.name || "effects"}"] [data-tool="${toolName}"], [data-tool="${toolName}"]`,
+    );
+    if (button) {
+      button.click();
+      return true;
+    }
+  }
   throw Error(
     "O controle visual do FXMaster ainda não está disponível. Abra os controles de efeitos do mapa e tente novamente.",
   );

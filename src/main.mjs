@@ -11,7 +11,7 @@ import {
 
 let app;
 
-export async function openCampaignManager() {
+export async function openCampaignManager(options = {}) {
   if (!game.user?.isGM)
     return ui.notifications.info(
       "O QUEDAÇO - Campanhas é uma ferramenta da Mestra.",
@@ -23,10 +23,14 @@ export async function openCampaignManager() {
     return ui.notifications.error(error.message);
   }
   if (app?.rendered) {
+    if (options.mapId) app.reviewMapId = options.mapId;
+    if (options.planner) app.detailTab = "mapa";
     app.render(false);
     return app.bringToFront();
   }
   app = new CampaignsApp();
+  if (options.mapId) app.reviewMapId = options.mapId;
+  if (options.planner) app.detailTab = "mapa";
   return app.render(true);
 }
 
@@ -82,6 +86,8 @@ Hooks.once("ready", () => {
       mapTimeline: true,
       mapPlanning: true,
       declaredResources: true,
+      roomAreaDrawing: true,
+      localCampaignLearning: true,
       lootPreparation: true,
       questProgress: true,
       imageNarration: true,
@@ -89,6 +95,8 @@ Hooks.once("ready", () => {
       visualMapLibrary: true,
     }),
     open: openCampaignManager,
+    openPlanner: (mapId = canvas.scene?.id) =>
+      openCampaignManager({ mapId, planner: true }),
     getStatus: () => ({
       ready: true,
       questIntegration: Boolean(questAPI(game)),
@@ -132,12 +140,24 @@ Hooks.on("getSceneControlButtons", (controls) => {
     order: 98,
     onClick: openCampaignManager,
   };
+  const planner = {
+    name: `${MODULE_ID}-planner`,
+    title: "Planejar salas do mapa atual",
+    icon: "fa-solid fa-draw-polygon",
+    button: true,
+    order: 99,
+    onClick: () =>
+      openCampaignManager({ mapId: canvas.scene?.id, planner: true }),
+  };
   if (Array.isArray(controls)) {
     const group =
       controls.find((entry) => entry.name === "tokens") ?? controls[0];
-    group?.tools?.push(tool);
+    group?.tools?.push(tool, planner);
   } else {
     const group = controls.tokens ?? Object.values(controls)[0];
-    if (group?.tools) group.tools[MODULE_ID] = tool;
+    if (group?.tools) {
+      group.tools[MODULE_ID] = tool;
+      group.tools[planner.name] = planner;
+    }
   }
 });

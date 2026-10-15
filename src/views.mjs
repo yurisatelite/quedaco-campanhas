@@ -20,16 +20,89 @@ const mediaImage = (scene, maps) =>
     : mapImage(sceneMap(scene, maps));
 
 function timeline(app, campaign, maps) {
-  return mapSequence(campaign)
+  const groups = mapSequence(campaign),
+    known = new Set(groups.map((group) => group.mapId));
+  if (campaign.usesMaps)
+    for (const mapId of [
+      ...Object.keys(campaign.mapReviews || {}),
+      app.reviewMapId,
+    ].filter(Boolean))
+      if (!known.has(mapId)) groups.push({ mapId, scenes: [] });
+  return groups
     .map((group) => {
       const map = maps.get(group.mapId);
-      return `<section class="qc-map-group" data-map-group="${esc(group.mapId)}"><header>${map ? img(mapImage(map), map.name) : ""}<div><strong>${esc(map?.name || "Narração e próximas cenas")}</strong><small>${group.scenes.length} de ${campaign.scenes.length} cenas</small></div></header><ol>${group.scenes.map(({ scene, index }) => `<li class="${scene.id === app.selectedSceneId ? "is-active" : ""}"><span class="qc-step-number">${String(index + 1).padStart(2, "0")}</span><article class="qc-scene-row"><button class="qc-scene-main" data-action="select-scene" data-scene="${esc(scene.id)}">${img(mediaImage(scene, maps), "", "qc-scene-thumb")}<span><small>${esc(SCENE_TYPES.find(([value]) => value === scene.kind)?.[1] || "Narração")} · ${scene.presentation === "image" ? "Imagem" : "Mapa"}</small><strong>${esc(scene.title)}</strong></span></button><div class="qc-row-actions">${scene.presentation === "image" ? button("open-image", "Abrir imagem", `data-scene="${esc(scene.id)}"`) : map ? button("open-map", "Abrir mapa", `data-map="${esc(map.id)}" data-scene="${esc(scene.id)}"`) : button("choose-scene-map", "Escolher mapa", `data-scene="${esc(scene.id)}"`)}${button("move-scene", "↑", `data-scene="${esc(scene.id)}" data-direction="-1" aria-label="Mover cena para cima" ${index === 0 ? "disabled" : ""}`)}${button("move-scene", "↓", `data-scene="${esc(scene.id)}" data-direction="1" aria-label="Mover cena para baixo" ${index === campaign.scenes.length - 1 ? "disabled" : ""}`)}</div><div class="qc-inline-resources">${scene.roster.map((row) => `<span draggable="true" data-actor-uuid="${esc(row.actorUuid)}" title="${esc(row.name)}">${img(row.img || "icons/svg/mystery-man.svg")}<span>${esc(row.name)} ×${row.quantity}</span></span>`).join("")}${scene.loot.map((item) => `<span draggable="true" data-item-uuid="${esc(item.uuid)}" data-loot-id="${esc(item.id)}" data-campaign="${esc(campaign.id)}" data-scene="${esc(scene.id)}" title="${esc(item.name)}">${img(item.img || "icons/svg/item-bag.svg")}<span>${esc(item.name)} ×${item.quantity}</span></span>`).join("")}</div></article></li>`).join("")}</ol></section>`;
+      const loose = !group.mapId;
+      return `<section class="qc-map-group ${loose ? "is-loose" : ""}" data-map-group="${esc(group.mapId)}"><header>${map ? img(mapImage(map), map.name) : ""}<div><small>${campaign.usesMaps ? (loose ? "CENAS AINDA NÃO DISTRIBUÍDAS" : "MAPA") : "CAMPANHA SEM MAPAS"}</small><strong>${esc(map?.name || (campaign.usesMaps ? "Pendências" : "Cenas da campanha"))}</strong><span>${group.scenes.length} cena(s)</span></div><div class="qc-map-actions">${map ? button("open-map", "Abrir", `data-map="${esc(map.id)}"`) + button("review-map", "Planejar", `data-map="${esc(map.id)}"`) + button("new-map-scene", "+ Cena", `data-map="${esc(map.id)}"`) : !campaign.usesMaps ? button("new-scene", "+ Cena") : ""}</div></header><ol>${group.scenes.map(({ scene, index }) => `<li class="${scene.id === app.selectedSceneId ? "is-active" : ""}"><span class="qc-step-number">${String(index + 1).padStart(2, "0")}</span><article class="qc-scene-row"><button class="qc-scene-main" data-action="select-scene" data-scene="${esc(scene.id)}">${img(mediaImage(scene, maps), "", "qc-scene-thumb")}<span><small>CENA · ${esc(SCENE_TYPES.find(([value]) => value === scene.kind)?.[1] || "Narração")}</small><strong>${esc(scene.title)}</strong>${summaryChips(scene, campaign)}</span></button><div class="qc-row-actions">${scene.presentation === "image" ? button("open-image", "Imagem", `data-scene="${esc(scene.id)}"`) : map ? button("open-map", "Mapa", `data-map="${esc(map.id)}" data-scene="${esc(scene.id)}"`) : button("choose-scene-map", "Escolher mapa", `data-scene="${esc(scene.id)}"`)}${button("move-scene", "←", `data-scene="${esc(scene.id)}" data-direction="-1" aria-label="Mover cena para a esquerda" ${index === 0 ? "disabled" : ""}`)}${button("move-scene", "→", `data-scene="${esc(scene.id)}" data-direction="1" aria-label="Mover cena para a direita" ${index === campaign.scenes.length - 1 ? "disabled" : ""}`)}</div></article></li>`).join("") || '<li class="qc-empty">Nenhuma cena neste mapa.</li>'}</ol></section>`;
     })
     .join("");
 }
 
+function linkedAreas(scene, campaign) {
+  return (scene.mapAreaRefs || [])
+    .map((ref) =>
+      campaign.mapReviews?.[ref.mapId]?.points?.find(
+        (area) => area.id === ref.areaId,
+      ),
+    )
+    .filter(Boolean);
+}
+
+function sceneSummary(scene, campaign) {
+  const areas = linkedAreas(scene, campaign),
+    joined = areas
+      .map((area) =>
+        `${area.type} ${area.suggestion?.challenge || ""} ${area.suggestion?.secret || ""}`,
+      )
+      .join(" ")
+      .toLocaleLowerCase("pt-BR"),
+    countType = (type) => areas.filter((area) => area.type === type).length;
+  return [
+    ["Monstros", scene.roster.length || areas.filter((a) => a.suggestion?.threats).length],
+    ["Loot", scene.loot.length || areas.filter((a) => a.suggestion?.loot).length],
+    ["Puzzles", countType("puzzle")],
+    ["Armadilhas", (joined.match(/armadilh/g) || []).length],
+    ["Desafios", countType("challenge") + countType("threat")],
+    ["Segredos", countType("secret") || areas.filter((a) => a.suggestion?.secret).length],
+  ];
+}
+
+function summaryChips(scene, campaign, includeEmpty = false) {
+  return `<span class="qc-summary-chips">${sceneSummary(scene, campaign)
+    .filter(([, count]) => includeEmpty || count)
+    .map(([label, count]) => `<span>${esc(label)} <b>${count}</b></span>`)
+    .join("") || "<span>Sem conteúdo preparado</span>"}</span>`;
+}
+
+function sceneSummaryPanel(scene, campaign) {
+  return `<section class="qc-scene-summary"><header><small>RESUMO DE PREPARAÇÃO</small><strong>O que existe nesta cena</strong></header>${summaryChips(scene, campaign, true)}</section>`;
+}
+
+const parentId = (folder) =>
+  typeof folder?.folder === "string" ? folder.folder : folder?.folder?.id || "";
+
+function mapTile(app, scene, map, folders) {
+  const assigned = scene?.mapSceneIds.includes(map.id),
+    label = assigned
+      ? "Retirar desta cena"
+      : app.campaign.usesMaps
+        ? "Mover cena para este mapa"
+        : "Usar nesta cena";
+  return `<article class="qc-map-tile ${assigned ? "is-assigned" : ""}">${img(mapImage(map), map.name)}<strong>${esc(map.name)}</strong><small>${esc(folderPath(map.folder, folders))}</small><div>${scene ? button("assign-map", label, `data-map="${esc(map.id)}"`) : ""}${button("open-map", "Abrir", `data-map="${esc(map.id)}" data-scene="${esc(scene?.id || "")}"`)}${button("review-map", "Planejar", `data-map="${esc(map.id)}"`)}${button("use-map-cover", "Capa", `data-map="${esc(map.id)}"`)}</div></article>`;
+}
+
+function folderNode(app, scene, folder, folders, maps, root = false) {
+  const children = folders.filter((row) => parentId(row) === folder.id),
+    direct = maps.filter((map) => parentId(map) === folder.id),
+    content = `${direct.map((map) => mapTile(app, scene, map, folders)).join("")}${children.map((child) => folderNode(app, scene, child, folders, maps)).join("")}`;
+  if (root)
+    return `<section class="qc-folder-root"><header><span>▣</span><strong>${esc(folder.name)}</strong><small>${maps.length} mapa(s)</small></header><div class="qc-folder-content">${content}</div></section>`;
+  return `<details class="qc-folder-node"><summary><span>▸</span><strong>${esc(folder.name)}</strong><small>${direct.length} mapa(s)</small></summary><div class="qc-folder-content">${content}</div></details>`;
+}
+
 function mapGallery(app, scene) {
-  const maps = app
+  const folders = app.sceneFolders(),
+    selected = folders.find((folder) => folder.id === app.campaign.mapFolderId),
+    maps = app
     .mapsForCampaign()
     .filter(
       (map) =>
@@ -38,24 +111,30 @@ function mapGallery(app, scene) {
           .toLocaleLowerCase("pt-BR")
           .includes(app.mapSearch.toLocaleLowerCase("pt-BR")),
     );
-  return `<details class="qc-map-library" ${app.galleryOpen ? "open" : ""}><summary>Galeria de mapas da pasta · ${maps.length}</summary><div class="qc-gallery-tools"><input name="map-search" value="${esc(app.mapSearch || "")}" placeholder="Buscar mapa nesta pasta" aria-label="Buscar mapa nesta pasta"><small>Escolha uma miniatura para usar em “${esc(scene?.title || "cena")}”.</small></div><div class="qc-map-gallery">${maps.map((map) => `<article class="qc-map-tile ${scene?.mapSceneIds.includes(map.id) ? "is-assigned" : ""}">${img(mapImage(map), map.name)}<strong>${esc(map.name)}</strong><small>${esc(folderPath(map.folder, app.sceneFolders()))}</small><div>${button("assign-map", scene?.mapSceneIds.includes(map.id) ? "Usar nesta cena ✓" : "Usar nesta cena", `data-map="${esc(map.id)}"`)}${button("open-map", "Abrir", `data-map="${esc(map.id)}" data-scene="${esc(scene?.id || "")}"`)}${button("review-map", "Planejar", `data-map="${esc(map.id)}"`)}${button("use-map-cover", "Capa", `data-map="${esc(map.id)}"`)}</div></article>`).join("") || '<p class="qc-empty">Escolha a pasta que contém os mapas da campanha.</p>'}</div></details>`;
+  const tree = !selected
+    ? '<p class="qc-empty">Escolha a pasta que contém os mapas da campanha.</p>'
+    : app.mapSearch
+      ? `<div class="qc-map-gallery">${maps.map((map) => mapTile(app, scene, map, folders)).join("") || '<p class="qc-empty">Nenhum mapa encontrado.</p>'}</div>`
+      : folderNode(app, scene, selected, folders, maps, true);
+  return `<details class="qc-map-library" ${app.galleryOpen ? "open" : ""}><summary>Galeria de mapas · ${maps.length}</summary><div class="qc-gallery-tools"><input name="map-search" value="${esc(app.mapSearch || "")}" placeholder="Buscar nesta galeria" aria-label="Buscar mapa nesta pasta"><small>${scene ? `Atribuição atual: “${esc(scene.title)}”. Clicar novamente retira o mapa.` : "Escolha uma cena para atribuir; o planejamento do mapa continua disponível."}</small></div>${tree}</details>`;
 }
 
 function sceneMedia(scene, maps) {
   if (scene.presentation === "image")
     return `<section class="qc-scene-media"><div class="qc-image-preview">${img(scene.image || DEFAULT_COVER, "Imagem de narração")}</div><label class="qc-field">Imagem de narração<div class="qc-input-action"><input data-scene-field="image" value="${esc(scene.image)}" placeholder="Caminho da imagem no Foundry">${button("pick-image", "Escolher imagem")}</div></label><div class="qc-actions">${button("open-image", "Abrir imagem", `data-scene="${esc(scene.id)}"`)}${button("share-image", "Mostrar imagem aos jogadores", `data-scene="${esc(scene.id)}"`)}</div></section>`;
   const assigned = scene.mapSceneIds.map((id) => maps.get(id)).filter(Boolean);
-  return `<section class="qc-scene-media"><div class="qc-assigned-maps">${assigned.map((map) => `<article>${img(mapImage(map), map.name)}<strong>${esc(map.name)}</strong><div class="qc-actions">${button("open-map", "Abrir mapa", `data-map="${esc(map.id)}" data-scene="${esc(scene.id)}"`)}${button("fx-particles", "☁ Partículas", `data-map="${esc(map.id)}" data-scene="${esc(scene.id)}" ${fxMasterStatus().available ? "" : "disabled"}`)}${button("fx-filters", "◐ Filtros", `data-map="${esc(map.id)}" data-scene="${esc(scene.id)}" ${fxMasterStatus().available ? "" : "disabled"}`)}${button("remove-map", "×", `data-map="${esc(map.id)}" data-scene="${esc(scene.id)}" aria-label="Retirar mapa da cena"`)}</div></article>`).join("")}</div>${button("choose-scene-map", "Escolher mapa na galeria", `data-scene="${esc(scene.id)}"`)}</section>`;
+  return `<section class="qc-scene-media"><div class="qc-assigned-maps">${assigned.map((map) => `<article>${img(mapImage(map), map.name)}<div><small>MAPA DESTA CENA</small><strong>${esc(map.name)}</strong><div class="qc-actions">${button("open-map", "Abrir mapa", `data-map="${esc(map.id)}" data-scene="${esc(scene.id)}"`)}${button("review-map", "Planejar salas", `data-map="${esc(map.id)}"`)}${button("remove-map", "Retirar mapa", `data-map="${esc(map.id)}" data-scene="${esc(scene.id)}"`)}</div></div></article>`).join("") || '<p class="qc-empty">Esta cena ainda não foi colocada em um mapa.</p>'}</div>${button("choose-scene-map", assigned.length ? "Trocar mapa na galeria" : "Escolher mapa na galeria", `data-scene="${esc(scene.id)}"`)}</section>`;
 }
 
 function fxPanel(scene, maps) {
   if (scene.presentation !== "map" || !scene.mapSceneIds.length) return "";
   const status = fxMasterStatus();
-  return `<details class="qc-fx"><summary>Preset e efeitos desta cena · FXMaster</summary><label class="qc-field">Preset<div class="qc-input-action"><input name="fx-preset" list="qc-presets" value="${esc(scene.fx.preset)}" placeholder="Escolher ou escrever preset">${button("save-fx", "Aplicar e guardar", `data-scene="${esc(scene.id)}" ${status.canPlay ? "" : "disabled"}`)}</div><datalist id="qc-presets">${presetNames()
+  const map = maps.get(scene.mapSceneIds[0]);
+  return `<section class="qc-fx"><header><div><small>FXMASTER · EFEITOS DO MAPA</small><strong>Controles desta cena</strong></div><div class="qc-actions">${button("fx-particles", "Abrir partículas", `data-map="${esc(map?.id || "")}" data-scene="${esc(scene.id)}" ${status.available ? "" : "disabled"}`)}${button("fx-filters", "Abrir filtros", `data-map="${esc(map?.id || "")}" data-scene="${esc(scene.id)}" ${status.available ? "" : "disabled"}`)}</div></header><label class="qc-field">Preset<div class="qc-input-action"><input name="fx-preset" list="qc-presets" value="${esc(scene.fx.preset)}" placeholder="Escolher ou escrever preset">${button("save-fx", "Aplicar e guardar", `data-scene="${esc(scene.id)}" ${status.canPlay ? "" : "disabled"}`)}</div><datalist id="qc-presets">${presetNames()
     .map((name) => `<option value="${esc(name)}"></option>`)
     .join(
       "",
-    )}</datalist></label>${scene.fx.enabled ? button("disable-fx", "Desativar preset guardado", `data-scene="${esc(scene.id)}"`) : ""}<small>Partículas e filtros podem ser editados nos botões do mapa. As alterações permanecem no mapa ao abri-lo novamente.</small></details>`;
+    )}</datalist></label>${scene.fx.enabled ? button("disable-fx", "Desativar preset guardado", `data-scene="${esc(scene.id)}"`) : ""}<small>Os botões acima abrem os controles visuais do FXMaster no mapa atual.</small></section>`;
 }
 
 function narrativeEditor(scene, campaign) {
@@ -98,9 +177,12 @@ export function renderWorkspace(app, game) {
     ? folderPath(selectedFolder, folders)
     : "Escolha a pasta de mapas desta campanha";
   const tab = app.detailTab || "roteiro";
-  return `<div class="qc-shell"><header class="qc-header">${img(campaign.cover || DEFAULT_COVER, campaign.title, "qc-cover")}<div><small>QUEDAÇO · CAMPANHAS</small><h1>${esc(campaign.title)}</h1><span>${esc(campaign.date.year)}${campaign.regions.length ? ` · ${esc(campaign.regions.join(" / "))}` : ""}</span></div></header><section class="qc-toolbar"><label class="qc-field">Pasta dos mapas<select data-action="select-folder"><option value="">Escolher pasta…</option>${folders.map((folder) => `<option value="${esc(folder.id)}" ${folder.id === campaign.mapFolderId ? "selected" : ""}>${esc(folderPath(folder, folders))}</option>`).join("")}</select></label><div class="qc-breadcrumb"><small>PASTA ATUAL</small><strong>${esc(path)}</strong></div></section><main class="qc-main"><section class="qc-scenes">${mapGallery(app, scene)}<header><h2>Roteiro</h2>${button("new-scene", "+ Cena")}<small>${campaign.scenes.length} cenas</small></header>${timeline(app, campaign, maps)}</section><aside class="qc-detail">${
+  const mapSetup = campaign.usesMaps
+    ? `<label class="qc-field">Galeria de mapas<select data-action="select-folder"><option value="">Escolher pasta…</option>${folders.map((folder) => `<option value="${esc(folder.id)}" ${folder.id === campaign.mapFolderId ? "selected" : ""}>${esc(folderPath(folder, folders))}</option>`).join("")}</select></label><div class="qc-breadcrumb"><small>GALERIA ATUAL</small><strong>${esc(path)}</strong></div>`
+    : '<div class="qc-breadcrumb"><small>ESTRUTURA</small><strong>Cenas livres, sem mapa obrigatório</strong></div>';
+  return `<div class="qc-shell"><header class="qc-header">${img(campaign.cover || DEFAULT_COVER, campaign.title, "qc-cover")}<div><small>QUEDAÇO · CAMPANHAS</small><h1>${esc(campaign.title)}</h1><span>${esc(campaign.date.year)}${campaign.regions.length ? ` · ${esc(campaign.regions.join(" / "))}` : ""}</span></div></header><section class="qc-toolbar"><div class="qc-map-mode"><small>ESTA CAMPANHA</small><div>${button("set-map-mode", "Com mapas", `data-value="true" aria-pressed="${campaign.usesMaps}"`)}${button("set-map-mode", "Sem mapas", `data-value="false" aria-pressed="${!campaign.usesMaps}"`)}</div></div>${mapSetup}</section><section class="qc-timeline"><header><div><small>ORDEM DA CAMPANHA · ESQUERDA PARA DIREITA</small><h2>Mapas e cenas</h2></div><span class="qc-legend"><i class="is-map"></i>Mapa <i class="is-scene"></i>Cena <i class="is-action"></i>Ação</span></header><div class="qc-timeline-track">${timeline(app, campaign, maps)}</div></section><main class="qc-main"><section class="qc-scenes"><header><div><small>BIBLIOTECA</small><h2>${campaign.usesMaps ? "Mapas da campanha" : "Materiais da campanha"}</h2></div><small>${campaign.scenes.length} cenas</small></header>${campaign.usesMaps ? mapGallery(app, scene) : '<p class="qc-empty">Esta campanha não exige mapas. Use a linha do tempo para criar e ordenar cenas livres.</p>'}</section><aside class="qc-detail">${
     scene
-      ? `<header class="qc-scene-header"><div><small>CENA ${String(campaign.scenes.findIndex((entry) => entry.id === scene.id) + 1).padStart(2, "0")} · USO DA MESTRA</small><h2>${esc(scene.title)}</h2></div><div class="qc-actions">${button("set-current", "Cena atual", `data-scene="${esc(scene.id)}"`)}${button("complete-scene", "Concluir cena e atualizar missão", `data-scene="${esc(scene.id)}"`)}</div></header>${sceneMedia(scene, maps)}${fxPanel(scene, maps)}<nav class="qc-tabs" aria-label="Preparação da cena">${[
+      ? `<header class="qc-scene-header"><div><small>CENA ${String(campaign.scenes.findIndex((entry) => entry.id === scene.id) + 1).padStart(2, "0")} · USO DA MESTRA</small><h2>${esc(scene.title)}</h2></div><div class="qc-actions">${button("set-current", "Cena atual", `data-scene="${esc(scene.id)}"`)}${button("complete-scene", "Concluir cena e atualizar missão", `data-scene="${esc(scene.id)}"`)}</div></header>${sceneSummaryPanel(scene, campaign)}${sceneMedia(scene, maps)}${fxPanel(scene, maps)}<nav class="qc-tabs" aria-label="Preparação da cena">${[
           ["roteiro", "Narração e notas"],
           ["mapa", "Planejar mapa"],
           [

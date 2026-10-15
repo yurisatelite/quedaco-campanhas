@@ -1,7 +1,13 @@
 import { resourceDefinitions } from "./declared-resources.mjs";
-import { POINT_TYPES } from "./map-review.mjs";
+import {
+  areaSceneData,
+  learningStats,
+  recordAreaFeedback,
+  suggestArea,
+} from "./room-learning.mjs";
 import { MODULE_ID, DEFAULT_COVER } from "./data.mjs";
 import { renderWorkspace } from "./views.mjs";
+import { extractFoundryAreas } from "./map-review.mjs";
 import { ResourceCatalog, applyResourceMatches } from "./resource-catalog.mjs";
 import { mapsInFolder } from "./map-library.mjs";
 import { listCampaigns, saveCampaigns } from "./store.mjs";
@@ -38,6 +44,10 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     this.detailTab = "roteiro";
     this.galleryOpen = true;
     this.mapSearch = "";
+    this.drawMode = "point";
+    this.pointType = "exploration";
+    this.pendingVertices = [];
+    this.rectangleStart = null;
     this.catalog = new ResourceCatalog(game);
     this.resourcesInitialized = false;
   }
@@ -108,6 +118,36 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
   _replaceHTML(result, content) {
     content.innerHTML = result;
   }
+
+  captureScroll() {
+    const value = (selector) => this.element?.querySelector(selector)?.scrollTop || 0;
+    return {
+      scenes: value(".qc-scenes"),
+      detail: value(".qc-detail"),
+      library: value(".qc-library"),
+      timeline: this.element?.querySelector(".qc-timeline-track")?.scrollLeft || 0,
+    };
+  }
+
+  restoreScroll(state) {
+    if (!state) return;
+    for (const [key, selector] of [
+      ["scenes", ".qc-scenes"],
+      ["detail", ".qc-detail"],
+      ["library", ".qc-library"],
+    ]) {
+      const element = this.element?.querySelector(selector);
+      if (element) element.scrollTop = state[key] || 0;
+    }
+    const timeline = this.element?.querySelector(".qc-timeline-track");
+    if (timeline) timeline.scrollLeft = state.timeline || 0;
+  }
+
+  async renderPreservingScroll() {
+    const state = this.captureScroll();
+    await this.render(true);
+    this.restoreScroll(state);
+  }
   _onRender(context, options) {
     super._onRender(context, options);
     const root = this.element;
@@ -118,6 +158,21 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     root.addEventListener("click", (event) => void this.click(event), {
       signal,
     });
+    root.addEventListener(
+      "pointerdown",
+      (event) => void this.mapPointerDown(event),
+      { signal },
+    );
+    root.addEventListener(
+      "pointermove",
+      (event) => this.mapPointerMove(event),
+      { signal },
+    );
+    root.addEventListener(
+      "pointerup",
+      (event) => void this.mapPointerUp(event),
+      { signal },
+    );
     root.addEventListener("change", (event) => void this.change(event), {
       signal,
     });
@@ -202,6 +257,84 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       {
         signal,
       },
+    );
+  }
+
+  mapCoordinates(event, canvasElement) {
+    const image = canvasElement?.querySelector("img"),
+      rect = image?.getBoundingClientRect();
+    if (!rect?.width || !rect.height) return null;
+    return {
+      x: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
+      y: Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100)),
+    };
+  }
+
+  addMapArea(campaign, mapId, shape, vertices) {
+    const review = (campaign.mapReviews[mapId] ??= { notes: "", points: [] }),
+      index = review.points.length + 1,
+      first = vertices[0] || { x: 0, y: 0 };
+    review.points.push({
+      id: globalThis.crypto?.randomUUID?.() || `area-${Date.now()}`,
+      type: this.pointType || "exploration",
+      shape,
+      x: first.x,
+      y: first.y,
+      vertices,
+      title: `Sala ${index}`,
+      description: "",
+      visualDescription: "",
+      gmNotes: "",
+      environment: "unknown",
+      status: "draft",
+      suggestion: {},
+      feedback: "",
+      feedbackId: "",
+      sceneId: "",
+    });
+  }
+
+  async mapPointerDown(event) {
+    const canvasElement = event.target.closest?.('[data-action="draw-map-area"]');
+    if (
+      !canvasElement ||
+      event.target.closest?.('[data-action="focus-area"]') ||
+      this.drawMode !== "rect" ||
+      event.button !== 0
+    )
+      return;
+    this.rectangleStart = this.mapCoordinates(event, canvasElement);
+    canvasElement.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  }
+
+  mapPointerMove(event) {
+    if (!this.rectangleStart || this.drawMode !== "rect") return;
+    const canvasElement = event.target.closest?.('[data-action="draw-map-area"]');
+    if (!canvasElement) return;
+    const current = this.mapCoordinates(event, canvasElement),
+      preview = canvasElement.querySelector(".qc-pending-rect");
+    if (!current || !preview) return;
+    preview.removeAttribute("hidden");
+    preview.setAttribute("x", Math.min(this.rectangleStart.x, current.x));
+    preview.setAttribute("y", Math.min(this.rectangleStart.y, current.y));
+    preview.setAttribute("width", Math.abs(this.rectangleStart.x - current.x));
+    preview.setAttribute("height", Math.abs(this.rectangleStart.y - current.y));
+  }
+
+  async mapPointerUp(event) {
+    if (!this.rectangleStart || this.drawMode !== "rect") return;
+    const canvasElement = event.target.closest?.('[data-action="draw-map-area"]'),
+      start = this.rectangleStart;
+    this.rectangleStart = null;
+    if (!canvasElement) return;
+    event.preventDefault();
+    const end = this.mapCoordinates(event, canvasElement);
+    if (!end || Math.abs(start.x - end.x) < 1 || Math.abs(start.y - end.y) < 1)
+      return ui.notifications.info("Arraste uma área maior para marcar a sala.");
+    const mapId = canvasElement.closest("[data-review-map]").dataset.reviewMap;
+    return this.mutate((campaign) =>
+      this.addMapArea(campaign, mapId, "rect", [start, end]),
     );
   }
 
@@ -391,6 +524,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
   async mutate(callback) {
     if (this.busy) return;
     this.busy = true;
+    const scrollState = this.captureScroll();
     try {
       const all = this.campaigns;
       const target = all.find((entry) => entry.id === this.campaignId);
@@ -429,20 +563,29 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
         });
         review.notes =
           reviewElement.querySelector("[data-review-notes]")?.value || "";
-        for (const element of reviewElement.querySelectorAll("[data-point]")) {
+        for (const element of reviewElement.querySelectorAll("[data-area]")) {
           const point = review.points.find(
-            (row) => row.id === element.dataset.point,
+            (row) => row.id === element.dataset.area,
           );
-          if (point)
-            for (const input of element.querySelectorAll("[data-point-field]"))
-              point[input.dataset.pointField] = input.value;
+          if (point) {
+            for (const input of element.querySelectorAll("[data-area-field]"))
+              point[input.dataset.areaField] = input.value;
+            for (const input of element.querySelectorAll(
+              "[data-suggestion-field]",
+            ))
+              point.suggestion[input.dataset.suggestionField] = input.value;
+          }
         }
       }
       await callback(target);
+      if (target.usesMaps)
+        for (const scene of target.scenes)
+          scene.mapSceneIds = (scene.mapSceneIds || []).slice(0, 1);
       await this.catalog.load();
       applyResourceMatches(target, this.catalog.entries);
       await saveCampaigns(game, all);
       await this.render(true);
+      this.restoreScroll(scrollState);
     } catch (error) {
       console.error(MODULE_ID, error);
       ui.notifications.error(
@@ -461,85 +604,165 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       return this.mutate(() => {
         this.reviewMapId = button.dataset.map;
         this.detailTab = "mapa";
+        this.pendingVertices = [];
       });
     if (action === "save-map-review") return this.mutate(() => {});
-    if (action === "mark-map-point") {
-      const image = button.querySelector("img"),
-        rect = image?.getBoundingClientRect();
-      if (!rect?.width || !rect.height) return;
-      const x = ((event.clientX - rect.left) / rect.width) * 100,
-        y = ((event.clientY - rect.top) / rect.height) * 100;
-      if (x < 0 || x > 100 || y < 0 || y > 100) return;
-      const mapId = button.closest("[data-review-map]").dataset.reviewMap;
-      const type =
-        this.element.querySelector('[name="point-type"]')?.value ||
-        "exploration";
-      this.pointType = type;
+    if (action === "import-foundry-areas") {
+      const mapId = button.closest("[data-review-map]").dataset.reviewMap,
+        map = game.scenes.get(mapId);
       return this.mutate((campaign) => {
-        const review = (campaign.mapReviews[mapId] ??= {
-          notes: "",
-          points: [],
-        });
-        review.points.push({
-          id: crypto.randomUUID(),
-          type,
-          x,
-          y,
-          title: POINT_TYPES.find(([id]) => id === type)?.[1] || "Ponto",
-          description: "",
-          sceneId: "",
-        });
+        const review = (campaign.mapReviews[mapId] ??= { notes: "", points: [] });
+        for (const imported of extractFoundryAreas(map)) {
+          if (review.points.some((area) => area.sourceId === imported.sourceId))
+            continue;
+          this.addMapArea(campaign, mapId, imported.shape, imported.vertices);
+          Object.assign(review.points.at(-1), {
+            title: imported.title || `Sala ${review.points.length}`,
+            source: imported.source,
+            sourceId: imported.sourceId,
+          });
+        }
       });
     }
-    if (["point-scene", "link-point-scene", "remove-point"].includes(action)) {
+    if (action === "draw-map-area") {
+      if (this.drawMode === "rect") return;
+      const coordinate = this.mapCoordinates(event, button);
+      if (!coordinate) return;
+      const mapId = button.closest("[data-review-map]").dataset.reviewMap;
+      if (this.drawMode === "polygon") {
+        this.pendingVertices.push(coordinate);
+        const preview = button.querySelector(".qc-pending-polygon");
+        preview?.setAttribute(
+          "points",
+          this.pendingVertices.map((point) => `${point.x},${point.y}`).join(" "),
+        );
+        const hint = button
+          .closest("[data-review-map]")
+          .querySelector(".qc-draw-toolbar small");
+        if (hint)
+          hint.textContent = `Clique nos cantos da sala e conclua o polígono · ${this.pendingVertices.length} vértices.`;
+        return;
+      }
+      return this.mutate((campaign) =>
+        this.addMapArea(campaign, mapId, "point", [coordinate]),
+      );
+    }
+    if (action === "cancel-polygon") {
+      this.pendingVertices = [];
+      return this.renderPreservingScroll();
+    }
+    if (action === "finish-polygon") {
+      const mapId = button.closest("[data-review-map]").dataset.reviewMap;
+      if (this.pendingVertices.length < 3)
+        return ui.notifications.info(
+          "Marque pelo menos três cantos para concluir o polígono.",
+        );
+      const vertices = [...this.pendingVertices];
+      this.pendingVertices = [];
+      return this.mutate((campaign) =>
+        this.addMapArea(campaign, mapId, "polygon", vertices),
+      );
+    }
+    if (action === "focus-area") {
+      const card = this.element.querySelector(
+        `[data-area="${button.dataset.area}"]`,
+      );
+      card?.scrollIntoView({ behavior: "smooth", block: "start" });
+      card?.classList.add("is-focused");
+      setTimeout(() => card?.classList.remove("is-focused"), 1200);
+      return;
+    }
+    if (
+      [
+        "suggest-area",
+        "accept-area",
+        "reject-area",
+        "area-scene",
+        "link-area-scene",
+        "remove-area",
+      ].includes(action)
+    ) {
       const mapId = button.closest("[data-review-map]").dataset.reviewMap;
       return this.mutate((campaign) => {
         const review = campaign.mapReviews[mapId],
-          point = review?.points.find((row) => row.id === button.dataset.point);
-        if (!point) return;
-        if (action === "remove-point") {
-          review.points = review.points.filter((row) => row.id !== point.id);
+          area = review?.points.find((row) => row.id === button.dataset.area);
+        if (!area) return;
+        if (action === "remove-area") {
+          review.points = review.points.filter((row) => row.id !== area.id);
           return;
         }
-        if (action === "link-point-scene") {
+        if (action === "suggest-area") {
+          area.suggestion = suggestArea(campaign, area, this.campaigns);
+          area.status = "suggested";
+          area.feedback = "";
+          return;
+        }
+        if (action === "accept-area" || action === "reject-area") {
+          const decision =
+            action === "accept-area" ? "accepted" : "rejected";
+          recordAreaFeedback(campaign, area, decision);
+          area.status = decision;
+          return;
+        }
+        if (action === "link-area-scene") {
           const scene = campaign.scenes.find(
             (row) => row.id === this.selectedSceneId,
           );
           if (scene) {
-            point.sceneId = scene.id;
+            area.sceneId = scene.id;
             scene.presentation = "map";
             if (!scene.mapSceneIds.includes(mapId))
               scene.mapSceneIds.push(mapId);
+            scene.mapAreaRefs ??= [];
+            if (!scene.mapAreaRefs.some((row) => row.areaId === area.id))
+              scene.mapAreaRefs.push({ mapId, areaId: area.id });
           }
           return;
         }
-        if (!campaign.scenes.some((row) => row.id === point.sceneId)) {
-          point.sceneId = crypto.randomUUID();
+        if (!campaign.scenes.some((row) => row.id === area.sceneId)) {
+          if (!Object.values(area.suggestion || {}).some(Boolean))
+            area.suggestion = suggestArea(campaign, area, this.campaigns);
+          const newScene = areaSceneData(area, mapId);
+          area.sceneId = newScene.id;
           const index = campaign.scenes.findIndex(
             (row) => row.id === this.selectedSceneId,
           );
-          campaign.scenes.splice(index + 1, 0, {
-            id: point.sceneId,
-            title: point.title,
-            kind:
-              point.type === "threat"
-                ? "combate"
-                : ["challenge", "puzzle"].includes(point.type)
-                  ? "desafio"
-                  : "exploracao",
-            mapSceneIds: [mapId],
-            presentation: "map",
-            notes: point.description,
-            purpose: point.description,
-            narration:
-              "Vocês chegam a um novo trecho da exploração. Observem o ambiente e decidam como desejam prosseguir.",
-            roster: [],
-            loot: [],
-          });
+          campaign.scenes.splice(index + 1, 0, newScene);
         }
-        this.selectedSceneId = point.sceneId;
+        this.selectedSceneId = area.sceneId;
         this.detailTab = "roteiro";
       });
+    }
+    if (action === "create-accepted-scenes") {
+      const mapId = button.closest("[data-review-map]").dataset.reviewMap;
+      return this.mutate((campaign) => {
+        const areas = campaign.mapReviews[mapId]?.points || [];
+        let insertion = campaign.scenes.findIndex(
+          (row) => row.id === this.selectedSceneId,
+        );
+        for (const area of areas
+          .filter((row) => row.feedback === "accepted" && !row.sceneId)
+          .sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0))) {
+          const newScene = areaSceneData(area, mapId);
+          area.sceneId = newScene.id;
+          campaign.scenes.splice(++insertion, 0, newScene);
+        }
+      });
+    }
+    if (action === "export-learning") {
+      await this.mutate(() => {});
+      const data = JSON.stringify(learningStats(this.campaigns).samples, null, 2),
+        name = `quedaco-aprendizado-${Date.now()}.json`;
+      if (typeof globalThis.saveDataToFile === "function")
+        return globalThis.saveDataToFile(data, "application/json", name);
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(
+        new Blob([data], { type: "application/json" }),
+      );
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      return;
     }
     if (action === "use-map-cover")
       return this.mutate((campaign) => {
@@ -580,6 +803,11 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
             ? scene.npcProfileIds.filter((id) => id !== button.dataset.profile)
             : [...scene.npcProfileIds, button.dataset.profile];
       });
+    if (action === "set-map-mode")
+      return this.mutate((campaign) => {
+        campaign.usesMaps = button.dataset.value === "true";
+        if (campaign.usesMaps) this.galleryOpen = true;
+      });
     if (action === "choose-scene-map")
       return this.mutate(() => {
         this.selectedSceneId = button.dataset.scene;
@@ -593,8 +821,9 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
         );
         if (scene) {
           scene.presentation = "map";
-          if (!scene.mapSceneIds.includes(button.dataset.map))
-            scene.mapSceneIds.push(button.dataset.map);
+          scene.mapSceneIds = scene.mapSceneIds.includes(button.dataset.map)
+            ? scene.mapSceneIds.filter((id) => id !== button.dataset.map)
+            : [button.dataset.map];
         }
       });
     if (action === "resolve-resources") {
@@ -832,6 +1061,32 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
         this.selectedSceneId = id;
         this.detailTab = "roteiro";
       });
+    if (action === "new-map-scene")
+      return this.mutate((campaign) => {
+        const id = `scene-${Date.now()}`,
+          mapId = button.dataset.map,
+          mapIndexes = campaign.scenes
+            .map((scene, index) => ({ scene, index }))
+            .filter(({ scene }) => scene.mapSceneIds?.[0] === mapId),
+          insertAt = mapIndexes.length
+            ? mapIndexes.at(-1).index + 1
+            : campaign.scenes.length;
+        campaign.scenes.splice(insertAt, 0, {
+          id,
+          title: "Nova cena deste mapa",
+          narration:
+            "Descreva o que os personagens percebem nesta parte do mapa.",
+          kind: "exploração",
+          objective: "",
+          mapSceneIds: [mapId],
+          mapAreaRefs: [],
+          roster: [],
+          loot: [],
+          presentation: "map",
+        });
+        this.selectedSceneId = id;
+        this.detailTab = "roteiro";
+      });
     if (action === "save-scene") {
       const fields = Object.fromEntries(
         Array.from(this.element.querySelectorAll("[data-scene-field]")).map(
@@ -1018,6 +1273,15 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
   async change(event) {
     const target = event.target,
       action = target.dataset.action;
+    if (target.name === "draw-mode") {
+      this.drawMode = target.value;
+      this.pendingVertices = [];
+      return this.mutate(() => {});
+    }
+    if (target.name === "point-type") {
+      this.pointType = target.value;
+      return;
+    }
     if (action === "bind-resource-profile")
       return this.bindResourceProfile(target.dataset.profile, target.value);
     if (action === "scene-presentation") return this.mutate(() => {});

@@ -19,15 +19,25 @@ game.modules.get("quedaco-campanhas").api.open();
 ## Preparação
 
 1. Abra uma campanha nos cartões de **Campanhas salvas e rascunho**, na parte inferior. A aventura inicial chama-se **Uma viagem estranha**, com capa autoral de um anão; o texto privado pode conter spoilers.
-2. Escolha a pasta de Cenas do Foundry: a galeria mostra miniaturas, subpastas e o caminho completo. Arquivos de imagem destinados a mapas precisam primeiro existir como Cenas no mundo.
-3. Antes de distribuir as cenas, clique em **Planejar** na miniatura. Escolha loot, puzzle, ameaça, desafio complexo, exploração ou segredo e clique na imagem para marcar o ponto. Escreva seu conteúdo; crie uma cena daquele ponto ou vincule à cena atual.
-4. O planejamento é uma **leitura visual assistida pela Mestra**, não reconhecimento automático de salas por inteligência artificial. Coordenadas dos pontos são relativas à imagem; eles não posicionam tokens, não adicionam loot automaticamente e não editam o mapa.
-5. Use **Usar nesta cena** para associar mapas. A sequência vertical conserva a ordem, inclusive quando uma imagem de narração separa duas cenas do mesmo mapa. As setas alteram a ordem. Cada trecho mostra sua quantidade de cenas.
-6. Na aba **Narração e notas**, escolha um tipo predefinido, escreva o texto para narrar e as notas privadas. Para interlúdios, selecione **Imagem para narração**. Abrir a imagem é privado; **Mostrar imagem aos jogadores** é uma ação explícita. A posição dos personagens continua sob seu controle.
-7. Em **Monstros e itens**, confira os recursos reconhecidos. Nomes declarados sem ficha oferecem uma seleção e uma área para arrastar Actor/Token ou Item compatível. Substituir a ficha preserva nome, descrição e função da campanha.
-8. Nos mapas associados, **Partículas** e **Filtros** abrem os controles visuais do FXMaster instalado. Presets disponíveis podem ser aplicados e guardados por cena, em seus mapas. Reabrir não reinicia um preset já presente, preservando edições. Versões sem API de presets ainda podem oferecer os editores nativos.
+2. Marque **Com mapas** ou **Sem mapas**. Quando houver mapas, escolha a pasta de Cenas do Foundry: a galeria mostra miniaturas e uma árvore de subpastas inicialmente recolhidas. Arquivos de imagem destinados a mapas precisam primeiro existir como Cenas no mundo.
+3. Antes de distribuir as cenas, clique em **Planejar** na miniatura ou use **Planejar salas do mapa atual** nos controles do canvas. Marque um ponto, arraste um retângulo visível ou clique nos cantos para desenhar um polígono. Se a Scene já possuir Regions ou Drawings, use **Importar Regions/Drawings**.
+4. Em cada área, informe o que reconhece visualmente, a função e o tipo de ambiente. O módulo combina isso com o texto oficial da campanha para sugerir função narrativa, narração, desafio, ameaça, loot e segredo.
+5. Revise a proposta e escolha **Aceitar / aprender** ou **Rejeitar**. Uma sala aceita pode virar uma cena; o botão em lote cria cenas para todas as salas aceitas ainda não vinculadas.
+6. O planejamento é uma **leitura visual assistida pela Mestra**, não reconhecimento automático de salas por inteligência artificial. A importação automática lê somente regiões/desenhos já marcados no Foundry. As áreas não posicionam tokens, não adicionam loot automaticamente e não editam paredes do mapa.
+7. A linha do tempo horizontal mostra mapas da esquerda para a direita e suas cenas dentro de cada bloco. Cada cena mapeada pertence a um único mapa; escolher outro a move, e clicar novamente ou em **Retirar mapa** desfaz o vínculo. Cenas soltas ficam num bloco de pendências. O cartão e o painel selecionado resumem monstros, loot, puzzles, armadilhas, desafios e segredos.
+8. Na aba **Narração e notas**, escolha um tipo predefinido, escreva o texto para narrar e as notas privadas. Para interlúdios, selecione **Imagem para narração**. Abrir a imagem é privado; **Mostrar imagem aos jogadores** é uma ação explícita. A posição dos personagens continua sob seu controle.
+9. Em **Monstros e itens**, confira os recursos reconhecidos. Nomes declarados sem ficha oferecem uma seleção e uma área para arrastar Actor/Token ou Item compatível. Substituir a ficha preserva nome, descrição e função da campanha.
+10. Nos mapas associados, **Partículas** e **Filtros** abrem os controles visuais do FXMaster instalado. Presets disponíveis podem ser aplicados e guardados por cena, em seus mapas. Reabrir não reinicia um preset já presente, preservando edições. Versões sem API de presets ainda podem oferecer os editores nativos.
 
-Sem mapas é possível criar uma cena genérica e adaptá-la depois. Salas detalhadas permanecem para uma próxima etapa; dados de salas anteriormente cadastrados não são apagados.
+Sem mapas é possível criar cenas livres e adaptá-las depois. Pontos criados na versão 0.2 são convertidos automaticamente em áreas pontuais; associações antigas com vários mapas são reduzidas ao primeiro mapa quando a campanha usa mapas, sem apagar as Scenes do mundo.
+
+### Memória local e aprendizado
+
+O aprendizado da versão 0.3 é local, explicável e funciona sem serviço externo. Ao aceitar ou rejeitar uma proposta, o módulo guarda um exemplo privado contendo o tipo da sala, ambiente, palavras da descrição visual e conteúdo revisado. Uma nova área semelhante prioriza a última proposta aceita compatível.
+
+As propostas básicas usam regras por tipo de cena e ambiente. Palavras do texto oficial — como dragão, mina, garra, Bahamut, gigante e desabamento — acrescentam direcionamentos temáticos. O módulo não treina uma rede neural, não examina pixels sozinho e não envia imagens ou textos para fora do Foundry.
+
+Use **Exportar aprendizado** para baixar os exemplos em JSON. Isso permite auditar as decisões e, no futuro, formar um conjunto de dados para uma integração visual opcional. Cada campanha conserva seus próprios exemplos, enquanto o administrador pode reaproveitar exemplos aceitos das campanhas privadas existentes no mesmo mundo.
 
 ### Texto oficial e resolução dos recursos
 
@@ -96,7 +106,7 @@ O projeto separado QUEDAÇO - Missões ainda não oferece uma API implementada n
 
 ## Privacidade e validação
 
-Campanhas, pontos do planejamento e notas são armazenados em páginas privadas de diário, com permissão padrão NONE. Jogadores não recebem esses dados pela API. Outros GMs têm os privilégios administrativos normais do Foundry. A publicação do módulo não inclui dados do seu mundo.
+Campanhas, áreas desenhadas, exemplos de aprendizado e notas são armazenados em páginas privadas de diário, com permissão padrão NONE. Jogadores não recebem esses dados pela API. Outros GMs têm os privilégios administrativos normais do Foundry. A publicação do módulo não inclui dados do seu mundo.
 
 O pacote inclui texto e capa autorais. Não distribui mapas de terceiros, PDFs ou fichas do livro.
 

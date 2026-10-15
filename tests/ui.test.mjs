@@ -111,6 +111,16 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       ),
     );
     assert.equal(await page.locator(".qc-map-tile").count(), 2);
+    assert.equal(await page.locator(".qc-folder-node").count(), 1);
+    assert.equal(
+      await page.locator('.qc-map-tile:has-text("02")').isVisible(),
+      false,
+    );
+    await page.locator(".qc-folder-node > summary").click();
+    assert.equal(
+      await page.locator('.qc-map-tile:has-text("02")').isVisible(),
+      true,
+    );
     assert.equal(
       await page
         .locator(".qc-map-tile")
@@ -126,6 +136,19 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       .click();
     await wait();
     assert.equal(await page.locator(".qc-assigned-maps img").count(), 1);
+    await page.locator(".qc-folder-node > summary").click();
+    await page.locator('[data-action="assign-map"][data-map="lower"]').click();
+    await wait();
+    assert.deepEqual(
+      await page.evaluate(() => app.selectedScene.mapSceneIds),
+      ["lower"],
+    );
+    await page.locator(".qc-folder-node > summary").click();
+    await page.locator('[data-action="assign-map"][data-map="lower"]').click();
+    await wait();
+    assert.deepEqual(await page.evaluate(() => app.selectedScene.mapSceneIds), []);
+    await page.locator('[data-action="assign-map"][data-map="entrance"]').click();
+    await wait();
     await page.locator('.qc-assigned-maps [data-action="open-map"]').click();
     await wait();
     assert.equal(await page.evaluate(() => openedMap), "entrance");
@@ -202,7 +225,6 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
     assert.equal(await page.locator('input[type="checkbox"]').count(), 0);
 
     await tab("roteiro");
-    await page.locator(".qc-fx>summary").click();
     await page.locator('[name="fx-preset"]').fill("fog");
     await page
       .getByRole("button", { name: "Aplicar e guardar", exact: true })
@@ -229,12 +251,18 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       mapId: "entrance",
     });
 
-    await page.locator('[data-action="new-scene"]').click();
+    await page
+      .locator('[data-action="new-map-scene"][data-map="entrance"]')
+      .click();
     await wait();
     assert.equal(
       await page.evaluate(() => app.campaign.scenes[1].title),
-      "Nova cena",
+      "Nova cena deste mapa",
     );
+    await page
+      .locator('[data-scene-field="presentation"]')
+      .selectOption("image");
+    await wait();
     assert.equal(
       await page.locator('[data-scene-field="presentation"]').inputValue(),
       "image",
@@ -264,7 +292,8 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
 
     await page.locator('[data-action="select-scene"]').first().click();
     await wait();
-    await page.locator(".qc-map-library>summary").click();
+    assert.ok(await page.locator(".qc-timeline-track").isVisible());
+    assert.ok((await page.locator(".qc-map-group").count()) >= 1);
     await page.locator(".qc-detail").evaluate((el) => (el.scrollTop = 0));
     for (const width of [1180, 900]) {
       await page.setViewportSize({ width, height: 900 });
@@ -281,7 +310,7 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
     }
     await page.setViewportSize({ width: 1180, height: 900 });
     await page.screenshot({
-      path: resolve(root, "dist", "preview-0.2.0.png"),
+      path: resolve(root, "dist", "preview-0.3.0.png"),
       fullPage: true,
     });
 
@@ -345,18 +374,80 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       .locator(".qc-review-canvas img")
       .click({ position: { x: 45, y: 60 } });
     await wait();
-    assert.equal(await page.locator(".qc-map-pin").count(), 1);
-    await page.locator('[data-point-field="title"]').fill("Selo dos ecos");
+    assert.equal(await page.locator(".qc-area-marker").count(), 1);
+    await page.locator('[data-area-field="title"]').fill("Selo dos ecos");
     await page
-      .locator('[data-point-field="description"]')
-      .fill("Um puzzle de ressonância.");
-    await page.locator('[data-action="save-map-review"]').click();
+      .locator('[data-area-field="visualDescription"]')
+      .fill("Um círculo de pedra, três runas e marcas de ressonância.");
+    await page
+      .locator('[data-area-field="environment"]')
+      .selectOption("shrine");
+    await page.locator('[data-action="suggest-area"]').click();
     await wait();
+    assert.ok(
+      (
+        await page.locator('[data-suggestion-field="challenge"]').inputValue()
+      ).includes("regra"),
+    );
+    await page
+      .locator('[data-suggestion-field="secret"]')
+      .fill("A terceira runa aponta para a garra ausente.");
+    await page.locator('[data-action="accept-area"]').click();
+    await wait();
+    assert.ok((await page.locator(".qc-learning-status").innerText()).includes("1 aceita"));
+
+    await page.locator('[name="draw-mode"]').selectOption("rect");
+    await wait();
+    await page.locator(".qc-review-canvas").scrollIntoViewIfNeeded();
+    const scrollBefore = await page
+      .locator(".qc-detail")
+      .evaluate((element) => element.scrollTop);
+    const canvas = await page.locator(".qc-review-canvas").boundingBox();
+    await page.mouse.move(canvas.x + 120, canvas.y + 80);
+    await page.mouse.down();
+    await page.mouse.move(canvas.x + 260, canvas.y + 180);
+    assert.equal(
+      await page.locator(".qc-pending-rect").getAttribute("hidden"),
+      null,
+    );
+    assert.ok(
+      Number(await page.locator(".qc-pending-rect").getAttribute("width")) > 0,
+    );
+    await page.mouse.up();
+    await wait();
+    assert.equal(
+      await page.locator(".qc-detail").evaluate((element) => element.scrollTop),
+      scrollBefore,
+    );
+    assert.equal(await page.locator(".qc-area-marker").count(), 2);
+    assert.equal(await page.locator(".qc-area-shape").count(), 1);
+    await page.locator(".qc-area-card").nth(1).locator('[data-area-field="type"]').selectOption("puzzle");
+    await page.locator(".qc-area-card").nth(1).locator('[data-area-field="environment"]').selectOption("shrine");
+    await page.locator(".qc-area-card").nth(1).locator('[data-area-field="visualDescription"]').fill("Runas semelhantes cercam uma porta menor.");
+    await page.locator(".qc-area-card").nth(1).locator('[data-action="suggest-area"]').click();
+    await wait();
+    assert.ok(
+      (await page.locator(".qc-area-card").nth(1).innerText()).includes(
+        "exemplo semelhante aceito anteriormente",
+      ),
+    );
+
+    await page.locator('[name="draw-mode"]').selectOption("polygon");
+    await wait();
+    const image = page.locator(".qc-review-canvas img");
+    await image.click({ position: { x: 300, y: 100 } });
+    await image.click({ position: { x: 380, y: 130 } });
+    await image.click({ position: { x: 340, y: 220 } });
+    assert.ok((await page.locator(".qc-draw-toolbar small").innerText()).includes("3 vértices"));
+    await page.locator('[data-action="finish-polygon"]').click();
+    await wait();
+    assert.equal(await page.locator(".qc-area-marker").count(), 3);
+    assert.equal(await page.locator(".qc-area-shape").count(), 2);
     await page.screenshot({
-      path: resolve(root, "dist", "preview-map-review-0.2.0.png"),
+      path: resolve(root, "dist", "preview-map-review-0.3.0.png"),
       fullPage: true,
     });
-    await page.locator('[data-action="point-scene"]').click();
+    await page.locator(".qc-area-card").first().locator('[data-action="area-scene"]').click();
     await wait();
     assert.equal(
       await page.locator('[data-scene-field="title"]').inputValue(),
@@ -374,7 +465,7 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       ),
     );
     await page.screenshot({
-      path: resolve(root, "dist", "preview-planner-0.2.0.png"),
+      path: resolve(root, "dist", "preview-planner-0.3.0.png"),
       fullPage: true,
     });
     assert.deepEqual(errors, []);

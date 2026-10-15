@@ -1,5 +1,25 @@
 # Histórico
 
+## 0.3.0 — Salas desenháveis e memória local
+
+- Planejamento por ponto, retângulo ou polígono diretamente sobre a imagem do mapa.
+- Retângulo visível durante o arraste, numeração centralizada e preservação da rolagem após concluir o desenho.
+- Importação opcional de Regions e Drawings já existentes na Scene, sem alegar análise automática dos pixels.
+- Linha do tempo horizontal: mapas como contêineres, cenas dentro deles e pendências separadas; cores distinguem mapa, cena e ação.
+- Uma cena mapeada possui no máximo um mapa; a atribuição move ou remove por alternância, corrigindo o acúmulo de mapas na primeira cena.
+- Galeria em árvore com subpastas recolhidas, miniaturas e busca; resumo por cena de loot, puzzles, armadilhas, monstros, desafios e segredos.
+- Painel FXMaster por cena com acesso direto aos controles atuais de partículas e filtros.
+- Ficha de área com nome, função, ambiente, descrição visual e notas privadas.
+- Propostas editáveis de função narrativa, texto para narrar, desafio, ameaças, loot e segredo.
+- Regras temáticas combinam o tipo de sala, o ambiente e termos reconhecidos no texto oficial da campanha.
+- Aceitar ou rejeitar registra exemplos privados; áreas semelhantes podem reutilizar conteúdo aceito anteriormente.
+- Exportação auditável do aprendizado local em JSON; nenhum texto ou mapa é enviado a serviço externo.
+- Criação de uma cena por sala ou geração em lote das salas aceitas, com vínculo persistente entre cena, mapa e área.
+- Atalho **Planejar salas do mapa atual** nos controles do canvas e método público `openPlanner(mapId)`.
+- Migração automática dos pontos da 0.2 para áreas pontuais e schema privado v3, preservando cenas e anotações.
+- Capabilities novas: `roomAreaDrawing` e `localCampaignLearning`.
+- Dezessete testes automatizados cobrindo migração, sugestões, memória, desenho, Regions/Drawings e geração de cenas.
+
 ## 0.2.0 — Preparação visual e recursos declarados
 
 - Interface refeita: campos compactos, tipos predefinidos, narração ampliada, cartões e rascunho na parte inferior e marcação única por botão.
