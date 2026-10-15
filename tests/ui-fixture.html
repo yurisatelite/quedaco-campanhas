@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pt-BR">
+  <meta charset="utf-8" /><link
+    rel="stylesheet"
+    href="/styles/campaigns.css"
+  /><link rel="stylesheet" href="/styles/preparation.css" /><style>
+    body {
+      margin: 0;
+      background: #111820;
+    }
+    #app {
+      height: 780px;
+      overflow: auto;
+    }
+  </style>
+  <div id="app"></div>
+  <script type="module">
+    import { NOATORA_CAMPAIGN, clone } from "/src/data.mjs";
+    import { enrichScenes } from "/src/campaign-document.mjs";
+    import { saveCampaigns } from "/src/store.mjs";
+    window.notifications = [];
+    window.ui = {
+      notifications: {
+        error: (message) => notifications.push(message),
+        warn: (message) => notifications.push(message),
+        info: (message) => notifications.push(message),
+      },
+    };
+    window.foundry = {
+      applications: {
+        api: {
+          ApplicationV2: class {
+            constructor() {
+              this.element = document.querySelector("#app");
+            }
+            async render() {
+              this.element.innerHTML = await this._renderHTML();
+              this._onRender({}, {});
+              return this;
+            }
+            _onRender() {}
+          },
+        },
+      },
+    };
+    const collection = (values) => {
+      values.get = (id) => values.find((value) => value.id === id);
+      return values;
+    };
+    const actor = {
+      id: "replacement",
+      uuid: "Actor.replacement",
+      documentName: "Actor",
+      name: "Guardião substituto",
+      img: "",
+      visible: true,
+    };
+    window.game = {
+      user: { isGM: true },
+      journal: [],
+      actors: collection([actor]),
+      folders: [{ id: "maps", name: "Noátorá", type: "Scene" }],
+      scenes: collection([
+        {
+          id: "entrance",
+          name: "Entrada de Noátorá",
+          folder: { id: "maps", name: "Noátorá" },
+          view: async () => {
+            window.openedMap = "entrance";
+          },
+        },
+      ]),
+      modules: new Map(),
+    };
+    window.fromUuid = async (uuid) => (uuid === actor.uuid ? actor : null);
+    window.JournalEntry = {
+      create: async (data) => {
+        const doc = {
+          ...data,
+          getFlag: (scope, key) => data.flags[scope]?.[key],
+          pages: data.pages.map((page, index) => ({
+            ...page,
+            id: `p${index}`,
+            getFlag: (scope, key) => page.flags[scope]?.[key],
+          })),
+          update: async (update) => {
+            doc.name = update.name;
+          },
+          updateEmbeddedDocuments: async (type, updates) => {
+            for (const update of updates)
+              Object.assign(
+                doc.pages.find((page) => page.id === update._id),
+                update,
+              );
+          },
+        };
+        game.journal.push(doc);
+        return doc;
+      },
+    };
+    const material = await fetch("/campanhas/noatora-a-garra-ausente.md").then(
+      (response) => response.text(),
+    );
+    const campaign = enrichScenes(clone(NOATORA_CAMPAIGN), material);
+    campaign.original.material = material;
+    campaign.working.material = material;
+    await saveCampaigns(game, [campaign]);
+    const { CampaignsApp } = await import("/src/app.mjs");
+    window.app = new CampaignsApp();
+    await app.render();
+    window.fixtureReady = true;
+  </script>
+</html>

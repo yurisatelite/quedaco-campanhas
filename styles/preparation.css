@@ -1,0 +1,66 @@
+.qc-app .window-content {
+  overflow: auto;
+}
+.qc-library {
+  display: grid;
+  gap: 12px;
+}
+.qc-scene-editor {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #4b7d88;
+  border-radius: 8px;
+  background: #172b35;
+}
+.qc-scene-editor label,
+.qc-fx label {
+  display: grid;
+  gap: 4px;
+}
+.qc-scene-editor textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 48px;
+}
+.qc-scene-editor pre {
+  white-space: pre-wrap;
+}
+.qc-private {
+  color: #94e0ce;
+  font-size: 12px;
+}
+.qc-scene-editor .qc-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.qc-checkbox input {
+  width: 16px;
+  height: 16px;
+}
+.qc-checkbox button {
+  margin-left: auto;
+}
+.qc-campaign-info > summary {
+  font-weight: bold;
+  cursor: pointer;
+}
+.qc-campaign-info[open] {
+  display: grid;
+}
+.qc-shell button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.qc-campaign-info textarea {
+  width: 100%;
+}
+.qc-npc-profiles {
+  margin-top: 12px;
+}
+.qc-scene-editor fieldset {
+  border: 1px solid #445665;
+  border-radius: 6px;
+}
