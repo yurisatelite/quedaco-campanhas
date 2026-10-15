@@ -18,7 +18,8 @@
     ],
     "recommends": [
       { "id": "quedaco", "type": "module" },
-      { "id": "fxmaster", "type": "module" }
+      { "id": "fxmaster", "type": "module" },
+      { "id": "forien-quest-log", "type": "module" }
     ]
   },
   "esmodules": ["src/main.mjs"],

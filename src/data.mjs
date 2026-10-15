@@ -144,6 +144,36 @@ export const clone = (value) =>
     : JSON.parse(JSON.stringify(value));
 const text = (value, fallback = "") => String(value ?? fallback);
 const normalizedScene = (entry, index) => ({
+  quest: {
+    questId: text(entry?.quest?.questId),
+    taskId: text(entry?.quest?.taskId),
+    publicObjective: text(entry?.quest?.publicObjective),
+    publicUpdate: text(entry?.quest?.publicUpdate),
+    syncOnComplete: entry?.quest?.syncOnComplete !== false,
+  },
+  narration: text(entry?.narration),
+  entryPoint: text(entry?.entryPoint),
+  rooms: (Array.isArray(entry?.rooms) ? entry.rooms : []).map(
+    (room, index) => ({
+      id: text(room?.id, `room-${index + 1}`),
+      name: text(room?.name, `Sala ${index + 1}`),
+      description: text(room?.description),
+      notes: text(room?.notes),
+      connections: text(room?.connections),
+    }),
+  ),
+  loot: (Array.isArray(entry?.loot) ? entry.loot : [])
+    .map((item, index) => ({
+      id: text(item?.id, `loot-${index + 1}`),
+      uuid: text(item?.uuid),
+      name: text(item?.name),
+      img: text(item?.img),
+      quantity: Math.max(1, Math.min(999, Number(item?.quantity) || 1)),
+      roomId: text(item?.roomId),
+      notes: text(item?.notes),
+      hidden: item?.hidden !== false,
+    }))
+    .filter((item) => item.uuid),
   purpose: text(entry?.purpose),
   information: text(entry?.information),
   success: text(entry?.success),
@@ -174,6 +204,7 @@ const normalizedScene = (entry, index) => ({
   roster: (Array.isArray(entry?.roster) ? entry.roster : [])
     .map((row) => ({
       profileId: text(row?.profileId),
+      roomId: text(row?.roomId),
       actorUuid: text(row?.actorUuid),
       name: text(row?.name),
       img: text(row?.img),

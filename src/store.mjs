@@ -6,6 +6,7 @@ import {
   normalizeCampaigns,
 } from "./data.mjs";
 import { enrichScenes } from "./campaign-document.mjs";
+import { prepareNoatora } from "./noatora-preparation.mjs";
 
 // Dados narrativos ficam em páginas privadas, nunca nas flags de Scene/Actor ou na API pública.
 export const CAMPAIGNS_SETTING = "campaigns";
@@ -63,7 +64,9 @@ export async function initializeCampaignStorage(game) {
       if (!response.ok)
         throw Error("Não foi possível carregar a campanha de Noátorá.");
       const material = await response.text();
-      const campaign = enrichScenes(clone(NOATORA_CAMPAIGN), material);
+      const campaign = prepareNoatora(
+        enrichScenes(clone(NOATORA_CAMPAIGN), material),
+      );
       campaign.original.material = material;
       campaign.working.material = material;
       campaign.scenes[7].npcProfileIds = ["jormu"];

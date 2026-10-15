@@ -26,6 +26,26 @@ game.modules.get("quedaco-campanhas").api.open();
 6. Em **Material, original e contexto da campanha**, altere a cópia de trabalho e use **Salvar cópia de trabalho**. O original permanece bloqueado.
 7. Opcionalmente, informe um preset do FXMaster e use os controles de aplicar/parar. Os controles dependem da API disponível na versão instalada; nesta primeira versão, o efeito usa o primeiro mapa associado à cena.
 
+### Roteiro por mapa, salas e recompensas
+
+O roteiro é apresentado de cima para baixo: cada mapa reúne suas cenas, na ordem da campanha, com uma contagem como **4 de 12 cenas**. As setas permitem reordenar as cenas. Ao abrir um mapa com o administrador aberto, ele seleciona uma cena correspondente; **Abrir mapa e roteiro** começa pela primeira cena desse mapa.
+
+Cada cena possui **Entrada do grupo / posicionamento**, **Texto para narrar**, funções e notas privadas. Use **Adicionar sala** para criar pontos de interesse com descrição, segredos e saídas. A Mestra posiciona os jogadores no canvas; nenhum personagem é movido automaticamente.
+
+Arraste fichas de monstros/NPCs para a bandeja de atores ou escolha um ator do mundo. Prepare itens e loot escolhendo um item do mundo ou arrastando um Item de compêndio. A sala escolhida na bandeja vincula os novos recursos àquele ponto de interesse. Os recursos preparados também aparecem como miniaturas arrastáveis sob a cena no roteiro.
+
+Ao arrastar loot preparado ao canvas, o módulo cria um **Tile visual oculto**, com a imagem do item e sua quantidade registrada. Revele-o pelo controle de Tiles do Foundry quando desejar. Isso não cria um inventário automático: abra a ficha do item ou arraste-o para uma ficha compatível para fazer a entrega manual.
+
+### Registro de Missões
+
+A integração funcional atual usa a mesma API pública do **Forien's Quest Log** que alimenta a aba Quests do Cadastro. Selecione a missão e o objetivo em cada cena. Alternativamente, escreva o texto público e clique em **Criar e vincular objetivo público**. A visibilidade da missão continua respeitando as permissões do Forien.
+
+Use **Concluir cena e atualizar missão** para registrar a conclusão. Se várias cenas apontarem para o mesmo objetivo, ele só conclui quando todas estiverem concluídas. **Sincronizar progresso agora** permite repetir a operação se o módulo de missões estava indisponível. As anotações dos jogadores permanecem no Forien e podem ser consultadas pelo botão de abrir a missão.
+
+**Publicar informação na missão** envia somente o texto escrito no campo público. Notas privadas, segredos de salas e o texto original nunca são publicados automaticamente.
+
+O projeto separado **QUEDAÇO - Missões**, do chat “Mod. Registro de missões”, foi conferido em 15/10/2026: está no esboço visual e no documento de requisitos, sem módulo/API implementados. A integração direta com esse projeto depende de sua implementação futura. Campanhas já funciona com o registro existente e funciona sem módulo de missões, mantendo a preparação local.
+
 Use **Adicionar campanha** para importar Markdown ou texto. Cabeçalhos `### C01 - Nome da cena` e tabelas com os campos `Tipo`, `Objetivo`, `Ação central`, `Papel`, `Informação`, `Sucesso`, `Falha` e `Saída` são reconhecidos. O arquivo de Noátorá em `campanhas/` serve de referência. Outros textos podem ser importados integralmente e receber cenas pelo botão **Adicionar cena**.
 
 ## Privacidade e dados

@@ -1,5 +1,7 @@
 import { MODULE_ID } from "./data.mjs";
 import { CampaignsApp } from "./app.mjs";
+import { bindLootCanvas } from "./loot-canvas.mjs";
+import { bindQuestRefresh, questAPI } from "./quests.mjs";
 import {
   listCampaigns,
   registerCampaignSettings,
@@ -28,7 +30,17 @@ export async function openCampaignManager() {
 }
 
 Hooks.once("init", () => registerCampaignSettings(game));
+bindLootCanvas();
+Hooks.on("canvasReady", (canvas) => {
+  if (game.user?.isGM && app?.rendered) void app.followMap(canvas.scene?.id);
+});
 Hooks.once("ready", () => {
+  bindQuestRefresh(game, () => {
+    const editing =
+      app?.element?.contains(document.activeElement) &&
+      document.activeElement?.matches("input,textarea,select");
+    if (app?.rendered && !app.busy && !editing) void app.render(true);
+  });
   const module = game.modules.get(MODULE_ID);
   if (!module) return;
   const descriptor = Object.freeze({
@@ -46,10 +58,15 @@ Hooks.once("ready", () => {
       fxMasterPresetControl: true,
       privateSceneNotes: true,
       campaignImport: true,
+      mapTimeline: true,
+      roomPreparation: true,
+      lootPreparation: true,
+      questProgress: true,
     }),
     open: openCampaignManager,
     getStatus: () => ({
       ready: true,
+      questIntegration: Boolean(questAPI(game)),
       npcCatalog:
         game.modules.get("quedaco")?.api?.capabilities?.npcDatabase === true,
     }),

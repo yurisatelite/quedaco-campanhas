@@ -106,6 +106,80 @@ test("interface salva notas, troca NPC, prepara token, associa mapa e preserva o
         ).original.material.includes("Noátorá"),
       ),
     );
+    await page.evaluate(async () => {
+      const item = {
+        uuid: "Item.crystal",
+        documentName: "Item",
+        name: "Cristal de contenção",
+        img: "",
+      };
+      game.items = [item];
+      const resolvePrevious = fromUuid;
+      window.fromUuid = async (uuid) =>
+        uuid === item.uuid ? item : resolvePrevious(uuid);
+      window.quest = {
+        id: "q1",
+        name: "Expedição a Noátorá",
+        playernotes: "Vamos procurar nas galerias.",
+        tasks: [{ uuidv4: "t1", name: "Explorar a entrada", completed: false }],
+        description: "",
+        save: async () => {
+          window.questSaves = (window.questSaves || 0) + 1;
+          return "q1";
+        },
+      };
+      game.modules.set("forien-quest-log", {
+        active: true,
+        public: {
+          QuestAPI: {
+            DB: { getAllQuests: () => [quest] },
+            open: () => {
+              window.openedQuest = true;
+            },
+          },
+        },
+      });
+      await app.mutate((campaign) => {
+        campaign.scenes
+          .slice(0, 4)
+          .forEach((scene) => (scene.mapSceneIds = ["entrance"]));
+      });
+    });
+    const mapGroup = page.locator('[data-map-group="entrance"]');
+    assert.ok((await mapGroup.innerText()).includes("4 de 12 cenas"));
+    assert.equal(await mapGroup.locator(".qc-step-number").count(), 4);
+    await page
+      .getByRole("button", { name: "Adicionar sala", exact: true })
+      .click();
+    await page
+      .locator('[data-room-field="description"]')
+      .fill("O salão guarda marcas de calor.");
+    await page
+      .getByRole("button", { name: "Salvar sala", exact: true })
+      .click();
+    await page.locator('[name="loot-item"]').selectOption("Item.crystal");
+    await page
+      .getByRole("button", { name: "Preparar item", exact: true })
+      .click();
+    await page.locator('.qc-loot [data-item-uuid="Item.crystal"]').waitFor();
+    assert.equal(
+      await mapGroup.locator(".qc-inline-resources [data-item-uuid]").count(),
+      1,
+    );
+    await page.locator('[data-action="link-quest"]').selectOption("q1");
+    await page.locator('[data-action="link-quest-task"]').selectOption("t1");
+    await page
+      .getByRole("button", {
+        name: "Concluir cena e atualizar missão",
+        exact: true,
+      })
+      .click();
+    await page.waitForFunction(() => quest.tasks[0].completed === true);
+    assert.equal(
+      await page.evaluate(() => quest.playernotes),
+      "Vamos procurar nas galerias.",
+    );
+    await page.locator("#app").evaluate((element) => (element.scrollTop = 0));
     await page.screenshot({
       path: resolve(root, "dist", "preview.png"),
       fullPage: true,
