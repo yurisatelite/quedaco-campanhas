@@ -1,5 +1,35 @@
 export const MODULE_ID = "quedaco-campanhas";
 export const CAMPAIGN_SCHEMA = "quedaco-campanhas/v2";
+export const DEFAULT_COVER =
+  "modules/quedaco-campanhas/assets/viagem-estranha.svg";
+export const SCENE_TYPES = Object.freeze([
+  ["narrativa", "Narração"],
+  ["exploracao", "Exploração"],
+  ["social", "Interação social"],
+  ["investigacao", "Investigação"],
+  ["desafio", "Desafio"],
+  ["combate", "Combate"],
+  ["descanso", "Descanso"],
+]);
+export function sceneKind(value) {
+  const key = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  return key.includes("combate")
+    ? "combate"
+    : key.includes("explora")
+      ? "exploracao"
+      : key.includes("investiga")
+        ? "investigacao"
+        : key.includes("social") || key.includes("intera")
+          ? "social"
+          : key.includes("desafio")
+            ? "desafio"
+            : key.includes("descanso")
+              ? "descanso"
+              : "narrativa";
+}
 const scene = (id, title, kind, objective) => ({
   id,
   title,
@@ -144,6 +174,31 @@ export const clone = (value) =>
     : JSON.parse(JSON.stringify(value));
 const text = (value, fallback = "") => String(value ?? fallback);
 const normalizedScene = (entry, index) => ({
+  resourceRefs: (Array.isArray(entry?.resourceRefs) ? entry.resourceRefs : [])
+    .map((row) => ({
+      id: text(row?.id),
+      quantity: Math.max(1, Math.min(99, Number(row?.quantity) || 1)),
+    }))
+    .filter((row) => row.id),
+  sourceKey: text(
+    entry?.sourceKey,
+    entry?.id?.match(/^c(\d+)/i)?.[1]
+      ? `C${entry.id.match(/^c(\d+)/i)[1].padStart(2, "0")}`
+      : "",
+  ),
+  presentation:
+    entry?.presentation === "image"
+      ? "image"
+      : entry?.presentation === "map"
+        ? "map"
+        : sceneKind(entry?.kind) === "narrativa" && !entry?.mapSceneIds?.length
+          ? "image"
+          : "map",
+  image: text(entry?.image),
+  excludedResources: (Array.isArray(entry?.excludedResources)
+    ? entry.excludedResources
+    : []
+  ).map(String),
   quest: {
     questId: text(entry?.quest?.questId),
     taskId: text(entry?.quest?.taskId),
@@ -172,6 +227,7 @@ const normalizedScene = (entry, index) => ({
       roomId: text(item?.roomId),
       notes: text(item?.notes),
       hidden: item?.hidden !== false,
+      source: text(item?.source, "manual"),
     }))
     .filter((item) => item.uuid),
   purpose: text(entry?.purpose),
@@ -189,7 +245,7 @@ const normalizedScene = (entry, index) => ({
   ],
   id: text(entry?.id, `scene-${index + 1}`),
   title: text(entry?.title, `Cena ${index + 1}`),
-  kind: text(entry?.kind, "narrativa"),
+  kind: sceneKind(entry?.kind),
   objective: text(entry?.objective),
   status: ["pending", "current", "completed", "skipped"].includes(entry?.status)
     ? entry.status
@@ -211,6 +267,7 @@ const normalizedScene = (entry, index) => ({
       role: text(row?.role, "token"),
       quantity: Math.max(1, Math.min(99, Number(row?.quantity) || 1)),
       hidden: Boolean(row?.hidden),
+      source: text(row?.source, "manual"),
     }))
     .filter((row) => row.actorUuid),
   fx: { preset: text(entry?.fx?.preset), enabled: Boolean(entry?.fx?.enabled) },
@@ -234,7 +291,56 @@ export function normalizeCampaign(value) {
   const result = {
     schema: CAMPAIGN_SCHEMA,
     id: text(source.id, crypto.randomUUID?.() || `campaign-${Date.now()}`),
-    title: text(source.title, "Campanha sem nome"),
+    title: ["Noátorá: A Garra Ausente", "Noátora: A Garra Ausente"].includes(
+      source.title,
+    )
+      ? "Uma viagem estranha"
+      : text(source.title, "Campanha sem nome"),
+    cover: text(source.cover, DEFAULT_COVER),
+    resourceProfiles: (Array.isArray(source.resourceProfiles)
+      ? source.resourceProfiles
+      : []
+    ).map((row, index) => ({
+      id: text(row?.id, `resource-${index + 1}`),
+      kind: ["npc", "threat", "item"].includes(row?.kind) ? row.kind : "threat",
+      name: text(row?.name, "Recurso da campanha"),
+      description: text(row?.description),
+      uuid: text(row?.uuid),
+      bindingName: text(row?.bindingName),
+      img: text(row?.img),
+    })),
+    mapReviews: Object.fromEntries(
+      Object.entries(
+        source.mapReviews && typeof source.mapReviews === "object"
+          ? source.mapReviews
+          : {},
+      ).map(([id, review]) => [
+        id,
+        {
+          notes: text(review?.notes),
+          points: (Array.isArray(review?.points) ? review.points : []).map(
+            (point, index) => ({
+              id: text(point?.id, `point-${index + 1}`),
+              type: [
+                "loot",
+                "puzzle",
+                "threat",
+                "challenge",
+                "exploration",
+                "secret",
+              ].includes(point?.type)
+                ? point.type
+                : "exploration",
+              x: Math.max(0, Math.min(100, Number(point?.x) || 0)),
+              y: Math.max(0, Math.min(100, Number(point?.y) || 0)),
+              title: text(point?.title, "Ponto de interesse"),
+              description: text(point?.description),
+              sceneId: text(point?.sceneId),
+            }),
+          ),
+        },
+      ]),
+    ),
     status: ["draft", "active", "completed"].includes(source.status)
       ? source.status
       : "draft",

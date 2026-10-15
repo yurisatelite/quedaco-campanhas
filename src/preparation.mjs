@@ -8,14 +8,18 @@ export const escapeHtml = (value) =>
   );
 
 export function mapSequence(campaign) {
-  const groups = new Map();
+  const groups = [];
   for (const [index, scene] of campaign.scenes.entries()) {
-    for (const mapId of scene.mapSceneIds.length ? scene.mapSceneIds : [""]) {
-      if (!groups.has(mapId)) groups.set(mapId, { mapId, scenes: [] });
-      groups.get(mapId).scenes.push({ scene, index });
+    for (const mapId of scene.presentation === "image"
+      ? [""]
+      : scene.mapSceneIds.length
+        ? scene.mapSceneIds
+        : [""]) {
+      if (groups.at(-1)?.mapId !== mapId) groups.push({ mapId, scenes: [] });
+      groups.at(-1).scenes.push({ scene, index });
     }
   }
-  return [...groups.values()];
+  return groups;
 }
 
 export function renderMapSequence(
@@ -52,5 +56,5 @@ export function roomOptions(scene, selected = "") {
 
 export function renderLoot(scene, items, campaignId) {
   const esc = escapeHtml;
-  return `<section class="qc-loot qc-resource-drop" data-resource-drop="Item"><h3>Itens e loot</h3><p>Escolha um item do mundo ou arraste uma ficha de Item de um compêndio para esta área. Arraste a recompensa preparada para o mapa para criar um marcador visual, ou para uma ficha que aceite itens.</p><div class="qc-roster-add"><select name="loot-item"><option value="">Escolher item…</option>${items.map((item) => `<option value="${esc(item.uuid)}">${esc(item.name)}</option>`).join("")}</select><button data-action="add-loot">Preparar item</button></div><label>Sala para novas recompensas<select name="loot-room">${roomOptions(scene)}</select></label><ul class="qc-roster">${scene.loot.map((item) => `<li draggable="true" data-item-uuid="${esc(item.uuid)}" data-loot-id="${esc(item.id)}" data-campaign="${esc(campaignId)}" data-scene="${esc(scene.id)}"><img src="${esc(item.img || "icons/svg/item-bag.svg")}" alt=""><span><strong>${esc(item.name)}</strong><small>${esc(scene.rooms.find((room) => room.id === item.roomId)?.name || "Cena inteira")} · ${item.hidden ? "marcador oculto" : "marcador visível"}</small><button data-action="open-document" data-uuid="${esc(item.uuid)}">Abrir ficha</button></span><button data-action="loot-quantity" data-loot="${esc(item.id)}" data-change="-1">−</button><b>${item.quantity}</b><button data-action="loot-quantity" data-loot="${esc(item.id)}" data-change="1">+</button><button data-action="remove-loot" data-loot="${esc(item.id)}" aria-label="Remover item">×</button></li>`).join("") || '<li class="qc-empty">Nenhuma recompensa preparada.</li>'}</ul></section>`;
+  return `<section class="qc-loot qc-resource-drop" data-resource-drop="Item"><h3>Itens e loot</h3><p>Escolha um item do catálogo ou arraste uma ficha de Item de um compêndio para esta área. Arraste a recompensa preparada para o mapa para criar um marcador visual, ou para uma ficha que aceite itens.</p><div class="qc-roster-add"><select name="loot-item"><option value="">Escolher item…</option>${items.map((item) => `<option value="${esc(item.uuid)}">${esc(item.name)}</option>`).join("")}</select><button data-action="add-loot">Preparar item</button></div><ul class="qc-roster">${scene.loot.map((item) => `<li draggable="true" data-item-uuid="${esc(item.uuid)}" data-loot-id="${esc(item.id)}" data-campaign="${esc(campaignId)}" data-scene="${esc(scene.id)}"><img src="${esc(item.img || "icons/svg/item-bag.svg")}" alt=""><span><strong>${esc(item.name)}</strong><small>${esc(scene.rooms.find((room) => room.id === item.roomId)?.name || "Cena inteira")} · ${item.hidden ? "marcador oculto" : "marcador visível"}</small><button data-action="open-document" data-uuid="${esc(item.uuid)}">Abrir ficha</button></span><button data-action="loot-quantity" data-loot="${esc(item.id)}" data-change="-1">−</button><b>${item.quantity}</b><button data-action="loot-quantity" data-loot="${esc(item.id)}" data-change="1">+</button><button data-action="remove-loot" data-loot="${esc(item.id)}" aria-label="Remover item">×</button></li>`).join("") || '<li class="qc-empty">Nenhuma recompensa preparada.</li>'}</ul></section>`;
 }

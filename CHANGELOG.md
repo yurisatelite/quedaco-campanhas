@@ -1,5 +1,21 @@
 # Histórico
 
+## 0.2.0 — Preparação visual e recursos declarados
+
+- Interface refeita: campos compactos, tipos predefinidos, narração ampliada, cartões e rascunho na parte inferior e marcação única por botão.
+- Nome inicial sem spoiler, Uma viagem estranha, com capa autoral e seleção de imagem por campanha.
+- Pasta de mapas com caminho completo, subpastas, busca, miniaturas e abertura por cena.
+- Cenas de imagem para narração entre mapas, sem quebrar a ordem do roteiro.
+- Planejamento visual privado por mapa: pontos de loot, puzzles, ameaças, desafios complexos, exploração e segredos; criação e vinculação de cenas. A marcação é assistida, não detecção automática de salas.
+- Reconhecimento de recursos em texto, NPCs/ameaças/itens declarados e vínculos pendentes por nome. Seleção ou arraste de representação preserva a informação narrativa.
+- Consulta a atores, itens, compêndios e API pública de NPCs; quantidades, bandejas e exclusões manuais preservadas.
+- FXMaster por mapa: atalhos aos editores de partículas/filtros, aplicação de presets e preservação das edições ao reabrir.
+- Missões com imagens e vínculos privados; somente ações públicas explícitas atualizam o registro dos jogadores.
+- Importação de narração em parágrafos e referências de recursos por cena; atualização mantém notas, atribuições e interlúdios.
+- Salas detalhadas retiradas da interface nesta fase, preservando dados existentes.
+- Capabilities novas: imageNarration, automaticResourceLinks, visualMapLibrary, mapPlanning e declaredResources. roomPreparation deixa de ser anunciada nesta versão.
+- Quinze testes automatizados, incluindo interface com CSS real do Foundry e documentos simulados. Sessão real ainda necessária para validar todas as integrações.
+
 ## 0.1.0 — Primeira versão instalável
 
 - Biblioteca em cartões com importação de campanhas Markdown/texto e original preservado.

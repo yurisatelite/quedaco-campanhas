@@ -1,62 +1,104 @@
 # QUEDAÇO - Campanhas
 
-Administrador de campanhas para Foundry VTT 13 e Skyfall RPG. Funciona sozinho e reconhece opcionalmente o cadastro de NPCs do QUEDAÇO principal.
+Administrador independente de campanhas para Foundry VTT 13 e Skyfall RPG, com integração opcional ao Cadastro QUEDAÇO, Forien's Quest Log e FXMaster.
 
 ## Instalação
 
-Em **Configuração → Módulos adicionais → Instalar módulo**, cole:
+No instalador de módulos do Foundry, use:
 
 ```text
 https://github.com/yurisatelite/quedaco-campanhas/releases/latest/download/module.json
 ```
 
-Ative **QUEDAÇO - Campanhas** no mundo. A Mestra pode abrir pelo botão **Campanhas** na aba de Cenas ou pelo ícone de pergaminho nos controles de tokens. Alternativa por macro:
+Ative no mundo e abra **Campanhas** na aba Cenas ou no ícone de pergaminho dos controles de tokens. Alternativa:
 
 ```js
 game.modules.get("quedaco-campanhas").api.open();
 ```
 
-## Uso
+## Preparação
 
-1. Abra um cartão da biblioteca. Noátorá: A Garra Ausente é criada no primeiro uso com o texto completo e 12 cenas.
-2. Escolha a pasta de Cenas que contém os mapas da campanha. Os mapas devem existir como Cenas no mundo do Foundry; arquivos de imagem sozinhos precisam ser configurados como Cenas antes.
-3. Associe um ou mais mapas a cada cena da aventura.
-4. Edite função narrativa, objetivos, pistas e consequências. Escreva em **Minhas anotações privadas** e clique em **Salvar preparação e notas**.
-5. Selecione ou arraste uma ficha para cada perfil de NPC. A representação muda e o perfil narrativo é preservado. Marque o NPC na cena e use **Preparar token** para adicionar à bandeja. Arraste a bandeja para o mapa.
-6. Em **Material, original e contexto da campanha**, altere a cópia de trabalho e use **Salvar cópia de trabalho**. O original permanece bloqueado.
-7. Opcionalmente, informe um preset do FXMaster e use os controles de aplicar/parar. Os controles dependem da API disponível na versão instalada; nesta primeira versão, o efeito usa o primeiro mapa associado à cena.
+1. Abra uma campanha nos cartões de **Campanhas salvas e rascunho**, na parte inferior. A aventura inicial chama-se **Uma viagem estranha**, com capa autoral de um anão; o texto privado pode conter spoilers.
+2. Escolha a pasta de Cenas do Foundry: a galeria mostra miniaturas, subpastas e o caminho completo. Arquivos de imagem destinados a mapas precisam primeiro existir como Cenas no mundo.
+3. Antes de distribuir as cenas, clique em **Planejar** na miniatura. Escolha loot, puzzle, ameaça, desafio complexo, exploração ou segredo e clique na imagem para marcar o ponto. Escreva seu conteúdo; crie uma cena daquele ponto ou vincule à cena atual.
+4. O planejamento é uma **leitura visual assistida pela Mestra**, não reconhecimento automático de salas por inteligência artificial. Coordenadas dos pontos são relativas à imagem; eles não posicionam tokens, não adicionam loot automaticamente e não editam o mapa.
+5. Use **Usar nesta cena** para associar mapas. A sequência vertical conserva a ordem, inclusive quando uma imagem de narração separa duas cenas do mesmo mapa. As setas alteram a ordem. Cada trecho mostra sua quantidade de cenas.
+6. Na aba **Narração e notas**, escolha um tipo predefinido, escreva o texto para narrar e as notas privadas. Para interlúdios, selecione **Imagem para narração**. Abrir a imagem é privado; **Mostrar imagem aos jogadores** é uma ação explícita. A posição dos personagens continua sob seu controle.
+7. Em **Monstros e itens**, confira os recursos reconhecidos. Nomes declarados sem ficha oferecem uma seleção e uma área para arrastar Actor/Token ou Item compatível. Substituir a ficha preserva nome, descrição e função da campanha.
+8. Nos mapas associados, **Partículas** e **Filtros** abrem os controles visuais do FXMaster instalado. Presets disponíveis podem ser aplicados e guardados por cena, em seus mapas. Reabrir não reinicia um preset já presente, preservando edições. Versões sem API de presets ainda podem oferecer os editores nativos.
 
-### Roteiro por mapa, salas e recompensas
+Sem mapas é possível criar uma cena genérica e adaptá-la depois. Salas detalhadas permanecem para uma próxima etapa; dados de salas anteriormente cadastrados não são apagados.
 
-O roteiro é apresentado de cima para baixo: cada mapa reúne suas cenas, na ordem da campanha, com uma contagem como **4 de 12 cenas**. As setas permitem reordenar as cenas. Ao abrir um mapa com o administrador aberto, ele seleciona uma cena correspondente; **Abrir mapa e roteiro** começa pela primeira cena desse mapa.
+### Texto oficial e resolução dos recursos
 
-Cada cena possui **Entrada do grupo / posicionamento**, **Texto para narrar**, funções e notas privadas. Use **Adicionar sala** para criar pontos de interesse com descrição, segredos e saídas. A Mestra posiciona os jogadores no canvas; nenhum personagem é movido automaticamente.
+Importe Markdown ou texto pela biblioteca inferior. O original é preservado em separado e fica bloqueado; edições são feitas na cópia de trabalho. **Salvar cópia de trabalho** atualiza cenas reconhecidas sem apagar notas, mapas ou interlúdios adicionados manualmente.
 
-Arraste fichas de monstros/NPCs para a bandeja de atores ou escolha um ator do mundo. Prepare itens e loot escolhendo um item do mundo ou arrastando um Item de compêndio. A sala escolhida na bandeja vincula os novos recursos àquele ponto de interesse. Os recursos preparados também aparecem como miniaturas arrastáveis sob a cena no roteiro.
+O catálogo lê atores e itens do mundo, a API pública de NPCs do Cadastro QUEDAÇO e índices de compêndios acessíveis de Skyfall ou sem sistema específico. Não depende de interfaces internas do Cadastro. Se um compêndio estiver indisponível, os demais continuam funcionando.
 
-Ao arrastar loot preparado ao canvas, o módulo cria um **Tile visual oculto**, com a imagem do item e sua quantidade registrada. Revele-o pelo controle de Tiles do Foundry quando desejar. Isso não cria um inventário automático: abra a ficha do item ou arraste-o para uma ficha compatível para fazer a entrega manual.
+O reconhecimento é por nomes e UUIDs, não geração de fichas, balanceamento automático ou interpretação semântica por IA. Referências explícitas são a opção mais previsível. Correspondências ambíguas priorizam documentos do mundo; confira os vínculos antes da sessão. No texto livre, quantidades simples e plurais comuns são reconhecidos. Você pode complementar manualmente.
 
-### Registro de Missões
+Formato de exemplo:
 
-A integração funcional atual usa a mesma API pública do **Forien's Quest Log** que alimenta a aba Quests do Cadastro. Selecione a missão e o objetivo em cada cena. Alternativamente, escreva o texto público e clique em **Criar e vincular objetivo público**. A visibilidade da missão continua respeitando as permissões do Forien.
+```markdown
+# Minha campanha
 
-Use **Concluir cena e atualizar missão** para registrar a conclusão. Se várias cenas apontarem para o mesmo objetivo, ele só conclui quando todas estiverem concluídas. **Sincronizar progresso agora** permite repetir a operação se o módulo de missões estava indisponível. As anotações dos jogadores permanecem no Forien e podem ser consultadas pelo botão de abrir a missão.
+## NPCs
 
-**Publicar informação na missão** envia somente o texto escrito no campo público. Notas privadas, segredos de salas e o texto original nunca são publicados automaticamente.
+### Guia
 
-O projeto separado **QUEDAÇO - Missões**, do chat “Mod. Registro de missões”, foi conferido em 15/10/2026: está no esboço visual e no documento de requisitos, sem módulo/API implementados. A integração direta com esse projeto depende de sua implementação futura. Campanhas já funciona com o registro existente e funciona sem módulo de missões, mantendo a preparação local.
+**Função:** Mostrar a entrada.
+Ajuda o grupo, mas não entra na câmara.
 
-Use **Adicionar campanha** para importar Markdown ou texto. Cabeçalhos `### C01 - Nome da cena` e tabelas com os campos `Tipo`, `Objetivo`, `Ação central`, `Papel`, `Informação`, `Sucesso`, `Falha` e `Saída` são reconhecidos. O arquivo de Noátorá em `campanhas/` serve de referência. Outros textos podem ser importados integralmente e receber cenas pelo botão **Adicionar cena**.
+## Ameaças
 
-## Privacidade e dados
+### Sentinela deformada
 
-As campanhas são guardadas no mundo em páginas privadas de diário com permissão padrão NONE, não em flags públicas de mapas ou atores. Jogadores não acessam a interface nem recebem campanhas pela API. Usuários com papel de Mestra/GM mantêm os privilégios administrativos normais do Foundry. O módulo não publica anotações pessoais no GitHub.
+Protege o receptáculo e reage ao som.
 
-O pacote contém o texto autoral da aventura. Não contém os mapas de terceiros, PDFs, fichas ou imagens do livro. As atribuições de mapas e atores são feitas no seu mundo.
+## Itens e loot
 
-## Integrações e validação
+### Poção de cura
 
-O contrato QUEDAÇO está descrito no [histórico](CHANGELOG.md). A integração de efeitos usa a [API oficial do FXMaster](https://github.com/gambit07/fxmaster#developer-api). A presença do FXMaster não garante que versões antigas tenham a API de presets; o módulo detecta isso sem bloquear a campanha.
+Uma recompensa na passagem lateral.
+
+## Cenas
+
+### C01 - A câmara
+
+| Campo    | Valor                  |
+| -------- | ---------------------- |
+| Tipo     | Exploração             |
+| NPCs     | Guia                   |
+| Ameaças  | 2 Sentinela deformada  |
+| Loot     | Poção de cura          |
+| Objetivo | Encontrar a inscrição. |
+
+#### Narração
+
+A água ecoa na galeria. Sob a luz das lanternas, vocês distinguem uma inscrição interrompida.
+
+O silêncio é cortado por um ruído de metal. Algo se move além do alcance da luz.
+```
+
+As listas de recursos nas tabelas aceitam nomes separados por ponto e vírgula, e quantidade como `2 Nome`. Não use essas seções para mencionar indiscriminadamente criaturas que não participam da cena. Para narrar, prefira parágrafos completos, distinguindo o que os jogadores percebem dos segredos nas notas privadas. A edição não amplia automaticamente um texto curto.
+
+### Tokens e loot
+
+Arraste miniaturas da bandeja ou do roteiro ao mapa. Atores de compêndios podem ser preparados pelo UUID. Loot arrastado cria um **Tile visual oculto** com imagem e quantidade; não entrega itens ao inventário. Revele-o nos controles de Tiles e entregue os itens pelas fichas, quando desejar.
+
+### Missões dos jogadores
+
+A integração usa a API pública do **Forien's Quest Log**, utilizada pelo Cadastro. As missões aparecem com imagem. Atribuir uma missão ou objetivo é um vínculo privado: não publica o roteiro nem as anotações da Mestra.
+
+**Concluir cena e atualizar missão** sincroniza o objetivo escolhido. Um objetivo compartilhado entre cenas só conclui quando todas terminam. As anotações dos jogadores são preservadas. Criação de objetivo e publicação de informação usam somente os campos públicos preenchidos explicitamente. As permissões de visibilidade continuam sob controle do Forien.
+
+O projeto separado QUEDAÇO - Missões ainda não oferece uma API implementada no estado inspecionado. Não há integração direta com uma API inexistente. Sem Forien, a preparação de campanhas continua disponível.
+
+## Privacidade e validação
+
+Campanhas, pontos do planejamento e notas são armazenados em páginas privadas de diário, com permissão padrão NONE. Jogadores não recebem esses dados pela API. Outros GMs têm os privilégios administrativos normais do Foundry. A publicação do módulo não inclui dados do seu mundo.
+
+O pacote inclui texto e capa autorais. Não distribui mapas de terceiros, PDFs ou fichas do livro.
 
 ```powershell
 npm ci
@@ -64,4 +106,4 @@ npm test
 npm run package
 ```
 
-Os testes incluem navegação e persistência em navegador com documentos simulados. A compatibilidade final de tokens, permissões e efeitos deve ser conferida em uma sessão real do Foundry.
+Os testes incluem persistência, permissões simuladas e interface em Edge usando o CSS real do Foundry com documentos simulados. A validação completa de tokens e integrações ainda requer uma sessão real com Skyfall, Forien e FXMaster.

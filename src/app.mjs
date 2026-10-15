@@ -1,15 +1,18 @@
-import { MODULE_ID } from "./data.mjs";
+import { resourceDefinitions } from "./declared-resources.mjs";
+import { POINT_TYPES } from "./map-review.mjs";
+import { MODULE_ID, DEFAULT_COVER } from "./data.mjs";
+import { renderWorkspace } from "./views.mjs";
+import { ResourceCatalog, applyResourceMatches } from "./resource-catalog.mjs";
+import { mapsInFolder } from "./map-library.mjs";
 import { listCampaigns, saveCampaigns } from "./store.mjs";
-import { fxMasterStatus, playPreset, stopPreset } from "./fxmaster.mjs";
-import { campaignFromMarkdown } from "./campaign-document.mjs";
 import {
-  renderMapSequence,
-  renderRooms,
-  renderLoot,
-  roomOptions,
-} from "./preparation.mjs";
+  playPreset,
+  stopPreset,
+  openFxEditor,
+  applyStoredSceneFx,
+} from "./fxmaster.mjs";
+import { campaignFromMarkdown, enrichScenes } from "./campaign-document.mjs";
 import {
-  renderQuestPanel,
   questAPI,
   createSceneTask,
   syncSceneTask,
@@ -18,15 +21,6 @@ import {
 
 const rosterKey = (row) =>
   JSON.stringify([row.actorUuid, row.roomId || "", row.profileId || ""]);
-const esc = (value) =>
-  String(value ?? "").replace(
-    /[&<>"']/g,
-    (char) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
-        char
-      ],
-  );
-
 export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS = {
     id: "quedaco-campanhas",
@@ -41,6 +35,11 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     this.campaignId = "";
     this.selectedSceneId = "";
     this.busy = false;
+    this.detailTab = "roteiro";
+    this.galleryOpen = true;
+    this.mapSearch = "";
+    this.catalog = new ResourceCatalog(game);
+    this.resourcesInitialized = false;
   }
 
   get campaigns() {
@@ -77,155 +76,33 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     );
   }
   mapsForCampaign() {
-    const folderId = this.campaign?.mapFolderId;
-    const all = this.allMaps();
-    return folderId
-      ? [
-          ...all.filter((map) => map.folder?.id === folderId),
-          ...all.filter((map) => map.folder?.id !== folderId),
-        ]
-      : all;
+    return mapsInFolder(
+      this.allMaps(),
+      this.sceneFolders(),
+      this.campaign?.mapFolderId,
+    );
   }
   npcCatalog() {
-    const worldActors = Array.from(game.actors ?? [])
-      .filter((actor) => actor.visible !== false)
-      .map((actor) => ({
-        uuid: actor.uuid ?? `Actor.${actor.id}`,
-        name: actor.name,
-        img: actor.img,
-        role: actor.type || "ator",
-        source: "Mundo",
-      }));
-    const api = game.modules.get("quedaco")?.api;
-    if (
-      api?.family === "quedaco" &&
-      api.capabilities?.npcDatabase &&
-      typeof api.listNpcs === "function"
-    ) {
-      try {
-        const registered = api
-          .listNpcs()
-          .map((entry) => ({ ...entry, source: "QUEDAÇO" }));
-        return [
-          ...registered,
-          ...worldActors.filter(
-            (actor) => !registered.some((npc) => npc.uuid === actor.uuid),
-          ),
-        ];
-      } catch (error) {
-        console.warn(
-          MODULE_ID,
-          "Não foi possível ler os NPCs do QUEDAÇO.",
-          error,
-        );
-      }
-    }
-    return Array.from(game.actors ?? [])
-      .filter((actor) => actor.visible !== false)
-      .map((actor) => ({
-        uuid: actor.uuid ?? `Actor.${actor.id}`,
-        name: actor.name,
-        img: actor.img,
-        role: "ator",
-        source: "Mundo",
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+    return this.catalog.entries.filter((row) => row.documentName === "Actor");
   }
-
+  async prepareCatalog(force = false) {
+    await this.catalog.load(force);
+    const all = this.campaigns,
+      before = JSON.stringify(all);
+    for (const campaign of all)
+      applyResourceMatches(campaign, this.catalog.entries);
+    if (before !== JSON.stringify(all)) await saveCampaigns(game, all);
+    this.resourcesInitialized = true;
+  }
   async _renderHTML() {
     if (!game.user?.isGM)
-      return '<p class="qc-empty">O administrador de campanhas é uma ferramenta da Mestra.</p>';
+      return "<p>O administrador de campanhas é uma ferramenta da Mestra.</p>";
+    if (!this.resourcesInitialized) await this.prepareCatalog();
     const campaign = this.campaign;
-    if (!campaign)
-      return '<p class="qc-empty">Nenhuma campanha disponível.</p>';
+    if (!campaign) return "<p>Nenhuma campanha disponível.</p>";
     this.campaignId = campaign.id;
-    this.selectedSceneId = this.selectedScene?.id ?? campaign.currentSceneId;
-    const folders = this.sceneFolders(),
-      maps = this.mapsForCampaign(),
-      selected = this.selectedScene,
-      npcs = this.npcCatalog();
-    const mapOption = (map) =>
-      `<option value="${esc(map.id)}">${esc(map.name)}${map.folder?.name ? ` · ${esc(map.folder.name)}` : ""}</option>`;
-    const mapNames = new Map(this.allMaps().map((map) => [map.id, map]));
-    const renderScene = (entry, index) => {
-      const assigned = entry.mapSceneIds
-        .map((id) => mapNames.get(id))
-        .filter(Boolean);
-      const current = entry.id === selected?.id;
-      return `<article class="qc-scene-row ${current ? "is-selected" : ""}"><button class="qc-scene-main" data-action="select-scene" data-scene="${esc(entry.id)}"><span class="qc-state is-${esc(entry.status)}"></span><span><small>${esc(entry.kind.toUpperCase())} · ${entry.roster.length} fichas · ${entry.loot.length} recompensas</small><strong>${esc(entry.title)}</strong><em>${esc(entry.objective)}</em></span></button><div class="qc-scene-maps">${assigned.length ? assigned.map((map) => `<span class="qc-map-chip"><button data-action="open-map" data-map="${esc(map.id)}" data-scene="${esc(entry.id)}">${esc(map.name)}</button><button data-action="remove-map" data-scene="${esc(entry.id)}" data-map="${esc(map.id)}" aria-label="Remover mapa">×</button></span>`).join("") : "<small>sem mapa</small>"}<select name="map-${esc(entry.id)}"><option value="">Associar mapa…</option>${maps.map(mapOption).join("")}</select><button data-action="add-map" data-scene="${esc(entry.id)}">+</button><button data-action="move-scene" data-scene="${esc(entry.id)}" data-direction="-1" ${index === 0 ? "disabled" : ""} aria-label="Mover cena para cima">↑</button><button data-action="move-scene" data-scene="${esc(entry.id)}" data-direction="1" ${index === campaign.scenes.length - 1 ? "disabled" : ""} aria-label="Mover cena para baixo">↓</button></div></article>`;
-    };
-    const rows = renderMapSequence(
-      campaign,
-      mapNames,
-      selected?.id,
-      renderScene,
-    );
-    const roster = selected?.roster ?? [];
-    const rosterRows =
-      roster
-        .map(
-          (row) =>
-            `<li draggable="true" data-actor-uuid="${esc(row.actorUuid)}"><img src="${esc(row.img || "icons/svg/mystery-man.svg")}" alt=""><span><strong>${esc(row.name || row.actorUuid)}</strong><small>${esc(row.role)} · ${esc(selected.rooms.find((room) => room.id === row.roomId)?.name || "Cena inteira")} · ${row.hidden ? "oculto" : "visível"}</small></span><button data-action="roster-quantity" data-roster="${esc(rosterKey(row))}" data-change="-1">−</button><b>${row.quantity}</b><button data-action="roster-quantity" data-roster="${esc(rosterKey(row))}" data-change="1">+</button><button data-action="remove-roster" data-roster="${esc(rosterKey(row))}" aria-label="Remover">×</button></li>`,
-        )
-        .join("") || '<li class="qc-empty">Nenhum NPC ou token preparado.</li>';
-    const folderOptions = `<option value="">Todos os mapas do mundo</option>${folders.map((folder) => `<option value="${esc(folder.id)}" ${folder.id === campaign.mapFolderId ? "selected" : ""}>${esc(folder.name)}</option>`).join("")}`;
-    const npcOptions = npcs
-      .map(
-        (npc) =>
-          `<option value="${esc(npc.uuid)}">${esc(npc.name)} · ${esc(npc.role || npc.source)}</option>`,
-      )
-      .join("");
-    const mapCards =
-      selected?.mapSceneIds
-        .map((id) => mapNames.get(id))
-        .filter(Boolean)
-        .map(
-          (map) =>
-            `<button class="qc-open-map" data-action="open-map" data-map="${esc(map.id)}"><img src="${esc(map.thumb || map.background?.src || "icons/svg/mystery-man.svg")}" alt=""><span>Abrir mapa<br><strong>${esc(map.name)}</strong></span></button>`,
-        )
-        .join("") ||
-      '<p class="qc-empty">Associe um mapa a esta cena para abri-lo daqui.</p>';
-    const campaignCards = this.campaigns
-      .map(
-        (entry) =>
-          `<button class="qc-campaign-card ${entry.id === campaign.id ? "is-selected" : ""}" data-action="select-campaign-card" data-campaign="${esc(entry.id)}"><small>${esc(entry.status.toUpperCase())} · rascunho ${entry.working?.revision || 1}</small><strong>${esc(entry.title)}</strong><span>${esc(entry.date?.year || "Data não definida")}</span><em>${entry.scenes.length} cenas · ${entry.regions.length} regiões</em></button>`,
-      )
-      .join("");
-    const profiles =
-      campaign.npcProfiles
-        .map(
-          (profile) =>
-            `<article class="qc-npc-profile" data-profile-id="${esc(profile.id)}"><img src="${esc(profile.actorImg || "icons/svg/mystery-man.svg")}" alt=""><div><strong>${esc(profile.name)}</strong><small>${esc(profile.campaignRole)}</small><p>${esc(profile.behavior)}</p><label>Ficha/token substituto<select data-action="replace-npc" data-profile="${esc(profile.id)}"><option value="">Não atribuído</option>${npcs.map((npc) => `<option value="${esc(npc.uuid)}" ${npc.uuid === profile.actorUuid ? "selected" : ""}>${esc(npc.name)}</option>`).join("")}</select></label><em>${profile.actorUuid ? `Usando: ${esc(profile.actorName || profile.actorUuid)}` : "Arraste uma ficha do Foundry aqui ou escolha uma na lista."}</em></div></article>`,
-        )
-        .join("") ||
-      '<p class="qc-empty">Nenhum perfil de NPC nesta campanha.</p>';
-    const fxStatus = fxMasterStatus();
-    const fxPanel = selected
-      ? `<section class="qc-fx"><h3>FXMaster</h3><p>${fxStatus.available ? "FXMaster detectado. O efeito só é aplicado quando você mandar." : "FXMaster não está instalado ou não expõe API neste mundo."}</p><label>Preset da cena<input data-action="edit-fx-preset" value="${esc(selected.fx.preset)}" placeholder="Nome do preset"></label><div><button data-action="play-fx" data-scene="${esc(selected.id)}" ${fxStatus.canPlay ? "" : "disabled"}>Aplicar preset</button><button data-action="stop-fx" data-scene="${esc(selected.id)}" ${fxStatus.canStop ? "" : "disabled"}>Parar preset</button></div></section>`
-      : "";
-    const campaignInfo = `<details class="qc-campaign-info"><summary>Material, original e contexto da campanha</summary><label>Título da cópia de trabalho<input data-action="edit-title" value="${esc(campaign.title)}"></label><div class="qc-inline-fields"><label>Era<input data-action="edit-era" value="${esc(campaign.date.era)}"></label><label>Ano<input data-action="edit-year" value="${esc(campaign.date.year)}"></label></div><label>Regiões (separadas por vírgula)<input data-action="edit-regions" value="${esc(campaign.regions.join(", "))}"></label><label>Cópia de trabalho · r${campaign.working.revision}<textarea name="working-material">${esc(campaign.working.material)}</textarea></label><button data-action="save-material">Salvar cópia de trabalho</button><details><summary>Original preservado · r${campaign.original.revision}</summary><pre>${esc(campaign.original.material)}</pre></details></details><section class="qc-npc-profiles"><h2>NPCs da campanha</h2><p>Trocar a ficha não altera a função, o comportamento ou a informação narrativa do NPC.</p>${profiles}</section>${fxPanel}`;
-    const sceneEditor = selected
-      ? `<section class="qc-scene-editor"><h2>${esc(selected.title)}</h2><p class="qc-private"><i class="fa-solid fa-lock"></i> Preparação e anotações privadas da Mestra</p>${[
-          ["title", "Título da cena"],
-          ["kind", "Tipo de cena"],
-          ["entryPoint", "Entrada do grupo / posicionamento no mapa"],
-          ["narration", "Texto para narrar aos jogadores"],
-          ["purpose", "Função narrativa"],
-          ["objective", "Objetivo"],
-          ["information", "Pistas e revelações"],
-          ["success", "Sucesso / saída"],
-          ["failure", "Falha / consequências"],
-          ["notes", "Minhas anotações privadas"],
-        ]
-          .map(
-            ([key, label]) =>
-              `<label>${label}<textarea data-scene-field="${key}" rows="${key === "notes" ? 5 : 2}">${esc(selected[key])}</textarea></label>`,
-          )
-          .join(
-            "",
-          )}<fieldset><legend>Funções dos NPCs nesta cena</legend>${campaign.npcProfiles.map((profile) => `<label class="qc-checkbox"><input type="checkbox" data-scene-npc="${esc(profile.id)}" ${selected.npcProfileIds.includes(profile.id) ? "checked" : ""}>${esc(profile.name)} · ${esc(profile.campaignRole)}<button type="button" data-action="prepare-profile" data-profile="${esc(profile.id)}">Preparar token</button></label>`).join("")}</fieldset><button data-action="save-scene" data-scene="${esc(selected.id)}">Salvar preparação e notas</button>${selected.details ? `<details><summary>Referência original desta cena</summary><pre>${esc(selected.details)}</pre></details>` : ""}</section>`
-      : "";
-    return `<div class="qc-shell"><header><div><small>ADMINISTRADOR DE CAMPANHA</small><h1>QUEDAÇO - Campanhas</h1></div><label>Campanha<select data-action="select-campaign">${this.campaigns.map((entry) => `<option value="${esc(entry.id)}" ${entry.id === campaign.id ? "selected" : ""}>${esc(entry.title)}</option>`).join("")}</select></label></header><section class="qc-library"><label>Adicionar campanha (.md ou .txt)<input type="file" accept=".md,.txt,text/plain,text/markdown" data-action="import-campaign"></label><div class="qc-campaign-grid">${campaignCards}</div></section><section class="qc-toolbar"><label>Pasta dos mapas no Foundry<select data-action="select-folder">${folderOptions}</select></label><span>${campaign.mapFolderId ? "A lista prioriza os mapas desta pasta." : "Nenhuma pasta selecionada; todos os mapas estão disponíveis."}</span></section><main><section class="qc-scenes"><header><h2>Cenas</h2><button data-action="new-scene">Adicionar cena</button><small>${campaign.scenes.length} cenas</small></header>${rows}</section><aside class="qc-detail">${sceneEditor}${selected ? renderQuestPanel(game, selected) + renderRooms(selected) : ""}${campaignInfo}${selected ? `<section><header><small>${esc(selected.kind.toUpperCase())} · ${esc(selected.status)}</small><h2>${esc(selected.title)}</h2><p>${esc(selected.objective)}</p><button data-action="set-current" data-scene="${esc(selected.id)}">Marcar como cena atual</button><button data-action="complete-scene" data-scene="${esc(selected.id)}">Concluir cena e atualizar missão</button></header><section><h3>Mapas associados</h3><div class="qc-map-cards">${mapCards}</div></section><section class="qc-resource-drop" data-resource-drop="Actor"><h3>Monstros e NPCs · tokens arrastáveis</h3><p>Adicione NPCs ou Atores à bandeja e abra o mapa. Cada linha pode ser arrastada para o canvas do Foundry para posicionar um token.</p><div class="qc-roster-add"><select name="roster-npc"><option value="">Escolher NPC ou Ator…</option>${npcOptions}</select><button data-action="add-roster" data-scene="${esc(selected.id)}">Adicionar</button></div><label>Sala para novos tokens<select name="roster-room">${roomOptions(selected)}</select></label><ul class="qc-roster">${rosterRows}</ul></section>${renderLoot(selected, Array.from(game.items ?? []), campaign.id)}</section>` : '<p class="qc-empty">Escolha uma cena.</p>'}</aside></main></div>`;
+    this.selectedSceneId = this.selectedScene?.id || campaign.currentSceneId;
+    return renderWorkspace(this, game);
   }
 
   _replaceHTML(result, content) {
@@ -244,6 +121,34 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     root.addEventListener("change", (event) => void this.change(event), {
       signal,
     });
+    root.addEventListener(
+      "toggle",
+      (event) => {
+        if (event.target.matches?.(".qc-map-library"))
+          this.galleryOpen = event.target.open;
+      },
+      { signal, capture: true },
+    );
+    root.addEventListener(
+      "input",
+      (event) => {
+        if (event.target.name !== "map-search") return;
+        const value = event.target.value;
+        clearTimeout(this.searchTimer);
+        this.searchTimer = setTimeout(() => {
+          this.mapSearch = value;
+          this.restoreSearchFocus = true;
+          void this.mutate(() => {});
+        }, 220);
+      },
+      { signal },
+    );
+    if (this.restoreSearchFocus) {
+      const input = root.querySelector('[name="map-search"]');
+      input?.focus();
+      input?.setSelectionRange(input.value.length, input.value.length);
+      this.restoreSearchFocus = false;
+    }
     root.addEventListener(
       "dragstart",
       (event) => {
@@ -277,7 +182,11 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     root.addEventListener(
       "dragover",
       (event) => {
-        if (event.target.closest?.("[data-profile-id], [data-resource-drop]"))
+        if (
+          event.target.closest?.(
+            "[data-profile-id], [data-resource-drop], [data-resource-profile]",
+          )
+        )
           event.preventDefault();
       },
       { signal },
@@ -285,13 +194,68 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     root.addEventListener(
       "drop",
       (event) =>
-        void (event.target.closest?.("[data-profile-id]")
-          ? this.dropNpcProfile(event)
-          : this.dropResource(event)),
+        void (event.target.closest?.("[data-resource-profile]")
+          ? this.dropResourceProfile(event)
+          : event.target.closest?.("[data-profile-id]")
+            ? this.dropNpcProfile(event)
+            : this.dropResource(event)),
       {
         signal,
       },
     );
+  }
+
+  async bindResourceProfile(id, uuid) {
+    if (!uuid) return;
+    try {
+      let document = await fromUuid(uuid);
+      if (document?.documentName === "Token") document = document.actor;
+      const profile = resourceDefinitions(this.campaign).find(
+        (row) => row.id === id,
+      );
+      if (
+        !profile ||
+        document?.documentName !== (profile.kind === "item" ? "Item" : "Actor")
+      )
+        throw Error("Escolha uma ficha compatível com este recurso.");
+      return this.mutate((campaign) => {
+        if (
+          id.startsWith("npc:") &&
+          campaign.npcProfiles.some((row) => `npc:${row.id}` === id)
+        ) {
+          Object.assign(
+            campaign.npcProfiles.find((row) => `npc:${row.id}` === id),
+            {
+              actorUuid: document.uuid,
+              actorName: document.name,
+              actorImg: document.img,
+            },
+          );
+        } else
+          Object.assign(
+            campaign.resourceProfiles.find((row) => row.id === id),
+            {
+              uuid: document.uuid,
+              bindingName: document.name,
+              img: document.img,
+            },
+          );
+      });
+    } catch (error) {
+      ui.notifications.warn(error.message);
+    }
+  }
+  async dropResourceProfile(event) {
+    event.preventDefault();
+    try {
+      const data = JSON.parse(event.dataTransfer.getData("text/plain"));
+      return this.bindResourceProfile(
+        event.target.closest("[data-resource-profile]").dataset.resourceProfile,
+        data.uuid,
+      );
+    } catch (error) {
+      ui.notifications.warn("Arraste uma ficha ou token válido.");
+    }
   }
 
   async prepareDocument(uuid, type) {
@@ -319,6 +283,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
         );
         if (existing) {
           existing.quantity += 1;
+          existing.source = "manual";
           return;
         }
         if (type === "Item")
@@ -383,9 +348,10 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           scene.id === (sceneId || this.selectedSceneId) &&
           scene.mapSceneIds.includes(mapId),
       ) || campaign.scenes.find((scene) => scene.mapSceneIds.includes(mapId));
-    this.campaignId = campaign.id;
-    this.selectedSceneId = scene.id;
-    return this.render(true);
+    return this.mutate(() => {
+      this.campaignId = campaign.id;
+      this.selectedSceneId = scene.id;
+    });
   }
 
   async dropNpcProfile(event) {
@@ -435,9 +401,6 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       if (current) {
         for (const input of this.element.querySelectorAll("[data-scene-field]"))
           current[input.dataset.sceneField] = input.value;
-        current.npcProfileIds = Array.from(
-          this.element.querySelectorAll("[data-scene-npc]:checked"),
-        ).map((input) => input.dataset.sceneNpc);
         for (const roomElement of this.element.querySelectorAll(
           "[data-room]",
         )) {
@@ -458,7 +421,26 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           current.quest.publicObjective = publicObjective.value;
         if (publicUpdate) current.quest.publicUpdate = publicUpdate.value;
       }
+      const reviewElement = this.element.querySelector("[data-review-map]");
+      if (reviewElement) {
+        const review = (target.mapReviews[reviewElement.dataset.reviewMap] ??= {
+          notes: "",
+          points: [],
+        });
+        review.notes =
+          reviewElement.querySelector("[data-review-notes]")?.value || "";
+        for (const element of reviewElement.querySelectorAll("[data-point]")) {
+          const point = review.points.find(
+            (row) => row.id === element.dataset.point,
+          );
+          if (point)
+            for (const input of element.querySelectorAll("[data-point-field]"))
+              point[input.dataset.pointField] = input.value;
+        }
+      }
       await callback(target);
+      await this.catalog.load();
+      applyResourceMatches(target, this.catalog.entries);
       await saveCampaigns(game, all);
       await this.render(true);
     } catch (error) {
@@ -475,6 +457,250 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     const button = event.target.closest?.("[data-action]");
     if (!button) return;
     const action = button.dataset.action;
+    if (action === "review-map")
+      return this.mutate(() => {
+        this.reviewMapId = button.dataset.map;
+        this.detailTab = "mapa";
+      });
+    if (action === "save-map-review") return this.mutate(() => {});
+    if (action === "mark-map-point") {
+      const image = button.querySelector("img"),
+        rect = image?.getBoundingClientRect();
+      if (!rect?.width || !rect.height) return;
+      const x = ((event.clientX - rect.left) / rect.width) * 100,
+        y = ((event.clientY - rect.top) / rect.height) * 100;
+      if (x < 0 || x > 100 || y < 0 || y > 100) return;
+      const mapId = button.closest("[data-review-map]").dataset.reviewMap;
+      const type =
+        this.element.querySelector('[name="point-type"]')?.value ||
+        "exploration";
+      this.pointType = type;
+      return this.mutate((campaign) => {
+        const review = (campaign.mapReviews[mapId] ??= {
+          notes: "",
+          points: [],
+        });
+        review.points.push({
+          id: crypto.randomUUID(),
+          type,
+          x,
+          y,
+          title: POINT_TYPES.find(([id]) => id === type)?.[1] || "Ponto",
+          description: "",
+          sceneId: "",
+        });
+      });
+    }
+    if (["point-scene", "link-point-scene", "remove-point"].includes(action)) {
+      const mapId = button.closest("[data-review-map]").dataset.reviewMap;
+      return this.mutate((campaign) => {
+        const review = campaign.mapReviews[mapId],
+          point = review?.points.find((row) => row.id === button.dataset.point);
+        if (!point) return;
+        if (action === "remove-point") {
+          review.points = review.points.filter((row) => row.id !== point.id);
+          return;
+        }
+        if (action === "link-point-scene") {
+          const scene = campaign.scenes.find(
+            (row) => row.id === this.selectedSceneId,
+          );
+          if (scene) {
+            point.sceneId = scene.id;
+            scene.presentation = "map";
+            if (!scene.mapSceneIds.includes(mapId))
+              scene.mapSceneIds.push(mapId);
+          }
+          return;
+        }
+        if (!campaign.scenes.some((row) => row.id === point.sceneId)) {
+          point.sceneId = crypto.randomUUID();
+          const index = campaign.scenes.findIndex(
+            (row) => row.id === this.selectedSceneId,
+          );
+          campaign.scenes.splice(index + 1, 0, {
+            id: point.sceneId,
+            title: point.title,
+            kind:
+              point.type === "threat"
+                ? "combate"
+                : ["challenge", "puzzle"].includes(point.type)
+                  ? "desafio"
+                  : "exploracao",
+            mapSceneIds: [mapId],
+            presentation: "map",
+            notes: point.description,
+            purpose: point.description,
+            narration:
+              "Vocês chegam a um novo trecho da exploração. Observem o ambiente e decidam como desejam prosseguir.",
+            roster: [],
+            loot: [],
+          });
+        }
+        this.selectedSceneId = point.sceneId;
+        this.detailTab = "roteiro";
+      });
+    }
+    if (action === "use-map-cover")
+      return this.mutate((campaign) => {
+        const map = game.scenes.get(button.dataset.map);
+        if (map)
+          campaign.cover = map.thumb || map.background?.src || DEFAULT_COVER;
+      });
+    if (action === "link-quest-card")
+      return this.mutate((campaign) => {
+        const scene = campaign.scenes.find(
+          (row) => row.id === this.selectedSceneId,
+        );
+        if (scene) {
+          scene.quest.questId = button.dataset.quest;
+          scene.quest.taskId = "";
+        }
+      });
+    if (action === "toggle-quest-sync")
+      return this.mutate((campaign) => {
+        const scene = campaign.scenes.find(
+          (row) => row.id === this.selectedSceneId,
+        );
+        if (scene) scene.quest.syncOnComplete = !scene.quest.syncOnComplete;
+      });
+    if (action === "detail-tab")
+      return this.mutate(() => {
+        this.detailTab = button.dataset.tab;
+      });
+    if (action === "toggle-profile")
+      return this.mutate((campaign) => {
+        const scene = campaign.scenes.find(
+          (row) => row.id === this.selectedSceneId,
+        );
+        if (scene)
+          scene.npcProfileIds = scene.npcProfileIds.includes(
+            button.dataset.profile,
+          )
+            ? scene.npcProfileIds.filter((id) => id !== button.dataset.profile)
+            : [...scene.npcProfileIds, button.dataset.profile];
+      });
+    if (action === "choose-scene-map")
+      return this.mutate(() => {
+        this.selectedSceneId = button.dataset.scene;
+        this.galleryOpen = true;
+        this.detailTab = "roteiro";
+      });
+    if (action === "assign-map")
+      return this.mutate((campaign) => {
+        const scene = campaign.scenes.find(
+          (row) => row.id === this.selectedSceneId,
+        );
+        if (scene) {
+          scene.presentation = "map";
+          if (!scene.mapSceneIds.includes(button.dataset.map))
+            scene.mapSceneIds.push(button.dataset.map);
+        }
+      });
+    if (action === "resolve-resources") {
+      await this.catalog.load(true);
+      return this.mutate(() => {});
+    }
+    if (action === "pick-image" || action === "pick-cover") {
+      const Picker =
+        foundry.applications.apps?.FilePicker?.implementation ||
+        globalThis.FilePicker;
+      if (!Picker)
+        return ui.notifications.warn(
+          "O seletor de arquivos não está disponível. Cole o caminho da imagem no campo.",
+        );
+      return new Picker({
+        type: "image",
+        current:
+          action === "pick-cover"
+            ? this.campaign.cover
+            : this.selectedScene?.image,
+        callback: (path) =>
+          void this.mutate((campaign) => {
+            if (action === "pick-cover") campaign.cover = path;
+            else {
+              const scene = campaign.scenes.find(
+                (row) => row.id === this.selectedSceneId,
+              );
+              if (scene) scene.image = path;
+            }
+          }),
+      }).browse();
+    }
+    if (action === "open-image" || action === "share-image") {
+      await this.mutate(() => {});
+      const scene = this.campaign?.scenes.find(
+        (row) => row.id === button.dataset.scene,
+      );
+      if (!scene) return;
+      const Popout =
+        foundry.applications.apps?.ImagePopout || globalThis.ImagePopout;
+      if (!Popout)
+        return ui.notifications.warn(
+          "O visualizador de imagens não está disponível.",
+        );
+      const popout = new Popout({
+        src: scene.image || DEFAULT_COVER,
+        window: { title: this.campaign.title },
+        shareable: true,
+      });
+      await popout.render(true);
+      if (action === "share-image") popout.shareImage();
+      return;
+    }
+    if (action === "fx-particles" || action === "fx-filters") {
+      await this.mutate(() => {});
+      const map = game.scenes?.get(button.dataset.map);
+      try {
+        return await openFxEditor(
+          map,
+          action === "fx-filters" ? "filters" : "particles",
+        );
+      } catch (error) {
+        ui.notifications.warn(error.message);
+        return;
+      }
+    }
+    if (action === "save-fx") {
+      const preset = this.element
+        .querySelector('[name="fx-preset"]')
+        ?.value.trim();
+      if (!preset)
+        return ui.notifications.warn(
+          "Escolha um preset ou use o painel de partículas.",
+        );
+      return this.mutate(async (campaign) => {
+        const scene = campaign.scenes.find(
+          (row) => row.id === button.dataset.scene,
+        );
+        if (!scene) return;
+        for (const id of scene.mapSceneIds) {
+          const map = game.scenes.get(id);
+          if (
+            map &&
+            scene.fx.enabled &&
+            scene.fx.preset &&
+            scene.fx.preset !== preset
+          )
+            await stopPreset(scene.fx.preset, map);
+          if (map) await playPreset(preset, map);
+        }
+        scene.fx.preset = preset;
+        scene.fx.enabled = true;
+      });
+    }
+    if (action === "disable-fx")
+      return this.mutate(async (campaign) => {
+        const scene = campaign.scenes.find(
+          (row) => row.id === button.dataset.scene,
+        );
+        if (!scene) return;
+        for (const id of scene.mapSceneIds) {
+          const map = game.scenes.get(id);
+          if (map) await stopPreset(scene.fx.preset, map);
+        }
+        scene.fx.enabled = false;
+      });
     if (action === "complete-scene")
       return this.mutate(async (campaign) => {
         const scene = campaign.scenes.find(
@@ -551,12 +777,19 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           (entry) => entry.id === this.selectedSceneId,
         );
         if (!scene) return;
+        if (action === "remove-loot") {
+          const removed = scene.loot.find(
+            (row) => row.id === button.dataset.loot,
+          );
+          if (removed) scene.excludedResources.push(removed.uuid);
+        }
         if (action === "remove-loot")
           scene.loot = scene.loot.filter(
             (row) => row.id !== button.dataset.loot,
           );
         else {
           const row = scene.loot.find((row) => row.id === button.dataset.loot);
+          if (row) row.source = "manual";
           if (row)
             row.quantity = Math.max(
               1,
@@ -582,15 +815,22 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     if (action === "new-scene")
       return this.mutate((campaign) => {
         const id = `scene-${Date.now()}`;
-        campaign.scenes.push({
+        const index = campaign.scenes.findIndex(
+          (scene) => scene.id === this.selectedSceneId,
+        );
+        campaign.scenes.splice(index + 1, 0, {
           id,
-          title: `Cena ${campaign.scenes.length + 1}`,
+          title: "Nova cena",
+          narration:
+            "Vocês chegam a uma nova etapa da jornada. Antes de seguir, observem o ambiente e decidam o próximo passo.",
           kind: "narrativa",
           objective: "",
           mapSceneIds: [],
           roster: [],
+          presentation: "image",
         });
         this.selectedSceneId = id;
+        this.detailTab = "roteiro";
       });
     if (action === "save-scene") {
       const fields = Object.fromEntries(
@@ -598,14 +838,11 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           (input) => [input.dataset.sceneField, input.value],
         ),
       );
-      const npcProfileIds = Array.from(
-        this.element.querySelectorAll("[data-scene-npc]:checked"),
-      ).map((input) => input.dataset.sceneNpc);
       return this.mutate((campaign) => {
         const scene = campaign.scenes.find(
           (entry) => entry.id === button.dataset.scene,
         );
-        if (scene) Object.assign(scene, fields, { npcProfileIds });
+        if (scene) Object.assign(scene, fields);
       });
     }
     if (action === "save-material") {
@@ -615,6 +852,10 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       return this.mutate((campaign) => {
         campaign.working.material = material ?? campaign.working.material;
         campaign.working.revision += 1;
+        Object.assign(
+          campaign,
+          enrichScenes(campaign, campaign.working.material),
+        );
       });
     }
     if (action === "prepare-profile") {
@@ -659,8 +900,23 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       const map = game.scenes?.get(button.dataset.map);
       if (!map) return ui.notifications.warn("Mapa não encontrado no Foundry.");
       await this.mutate(() => {});
-      await map.view();
-      return this.followMap(map.id, button.dataset.scene);
+      this.openingMap = true;
+      try {
+        await map.view();
+        await this.followMap(map.id, button.dataset.scene);
+      } finally {
+        this.openingMap = false;
+      }
+      const linked = this.campaign?.scenes.find(
+        (scene) => scene.id === (button.dataset.scene || this.selectedSceneId),
+      );
+      if (linked)
+        try {
+          await applyStoredSceneFx(linked, map);
+        } catch (error) {
+          ui.notifications.warn(error.message);
+        }
+      return;
     }
     if (action === "play-fx" || action === "stop-fx") {
       const scene = this.campaign?.scenes.find(
@@ -695,6 +951,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
         const scene = campaign.scenes.find(
           (entry) => entry.id === button.dataset.scene,
         );
+        if (scene) scene.presentation = "map";
         if (scene && !scene.mapSceneIds.includes(mapId))
           scene.mapSceneIds.push(mapId);
       });
@@ -733,6 +990,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
         const row = scene?.roster.find(
           (entry) => rosterKey(entry) === button.dataset.roster,
         );
+        if (row) row.source = "manual";
         if (row)
           row.quantity = Math.max(
             1,
@@ -744,6 +1002,12 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
         const scene = campaign.scenes.find(
           (entry) => entry.id === this.selectedSceneId,
         );
+        if (scene) {
+          const removed = scene.roster.find(
+            (row) => rosterKey(row) === button.dataset.roster,
+          );
+          if (removed) scene.excludedResources.push(removed.actorUuid);
+        }
         if (scene)
           scene.roster = scene.roster.filter(
             (row) => rosterKey(row) !== button.dataset.roster,
@@ -754,6 +1018,23 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
   async change(event) {
     const target = event.target,
       action = target.dataset.action;
+    if (action === "bind-resource-profile")
+      return this.bindResourceProfile(target.dataset.profile, target.value);
+    if (action === "scene-presentation") return this.mutate(() => {});
+    if (action === "edit-cover")
+      return this.mutate((campaign) => {
+        campaign.cover = target.value;
+      });
+    if (action === "link-quest-card")
+      return this.mutate((campaign) => {
+        const scene = campaign.scenes.find(
+          (row) => row.id === this.selectedSceneId,
+        );
+        if (scene) {
+          scene.quest.questId = target.value;
+          scene.quest.taskId = "";
+        }
+      });
     if (
       action === "link-quest" ||
       action === "link-quest-task" ||
@@ -781,6 +1062,8 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           file.name.replace(/\.[^.]+$/, ""),
         );
         campaign.mapFolderId = this.campaign?.mapFolderId || "";
+        await this.catalog.load();
+        applyResourceMatches(campaign, this.catalog.entries);
         await saveCampaigns(game, [campaign]);
         this.campaignId = campaign.id;
         this.selectedSceneId = "";
@@ -798,6 +1081,8 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     if (action === "select-folder")
       return this.mutate((campaign) => {
         campaign.mapFolderId = target.value;
+        this.galleryOpen = true;
+        this.mapSearch = "";
       });
     if (action === "replace-npc") {
       const npc = this.npcCatalog().find(

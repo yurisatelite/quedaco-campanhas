@@ -2,6 +2,7 @@ import { MODULE_ID } from "./data.mjs";
 import { CampaignsApp } from "./app.mjs";
 import { bindLootCanvas } from "./loot-canvas.mjs";
 import { bindQuestRefresh, questAPI } from "./quests.mjs";
+import { applyStoredSceneFx } from "./fxmaster.mjs";
 import {
   listCampaigns,
   registerCampaignSettings,
@@ -32,8 +33,28 @@ export async function openCampaignManager() {
 Hooks.once("init", () => registerCampaignSettings(game));
 bindLootCanvas();
 Hooks.on("canvasReady", (canvas) => {
-  if (game.user?.isGM && app?.rendered) void app.followMap(canvas.scene?.id);
+  if (game.user?.isGM && app?.rendered && !app.openingMap)
+    void (async () => {
+      await app.followMap(canvas.scene?.id);
+      const scene = app.selectedScene;
+      if (scene?.mapSceneIds.includes(canvas.scene?.id))
+        await applyStoredSceneFx(scene, canvas.scene);
+    })().catch((error) => ui.notifications.warn(error.message));
 });
+for (const event of [
+  "createActor",
+  "updateActor",
+  "deleteActor",
+  "createItem",
+  "updateItem",
+  "deleteItem",
+])
+  Hooks.on(event, () => {
+    if (app) {
+      app.catalog.loading = null;
+      app.resourcesInitialized = false;
+    }
+  });
 Hooks.once("ready", () => {
   bindQuestRefresh(game, () => {
     const editing =
@@ -59,9 +80,13 @@ Hooks.once("ready", () => {
       privateSceneNotes: true,
       campaignImport: true,
       mapTimeline: true,
-      roomPreparation: true,
+      mapPlanning: true,
+      declaredResources: true,
       lootPreparation: true,
       questProgress: true,
+      imageNarration: true,
+      automaticResourceLinks: true,
+      visualMapLibrary: true,
     }),
     open: openCampaignManager,
     getStatus: () => ({

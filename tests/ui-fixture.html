@@ -1,113 +1,299 @@
 <!doctype html>
-<html lang="pt-BR">
-  <meta charset="utf-8" /><link
+<html lang="pt-BR" class="theme-dark">
+  <meta charset="utf-8" />
+  <base href="/" />
+  <link rel="stylesheet" href="/foundry.css" /><link
     rel="stylesheet"
     href="/styles/campaigns.css"
-  /><link rel="stylesheet" href="/styles/preparation.css" /><style>
+  />
+  <style>
+    html,
     body {
       margin: 0;
-      background: #111820;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
     }
     #app {
-      height: 780px;
-      overflow: auto;
+      position: relative !important;
+      display: flex;
+      width: 1180px;
+      height: 900px;
+      max-width: 100vw;
+      max-height: 100vh;
+      min-height: 0;
+      margin: 0;
+      inset: 0 !important;
+    }
+    #app > .window-content {
+      flex: 1;
     }
   </style>
-  <div id="app"></div>
-  <script type="module">
-    import { NOATORA_CAMPAIGN, clone } from "/src/data.mjs";
-    import { enrichScenes } from "/src/campaign-document.mjs";
-    import { saveCampaigns } from "/src/store.mjs";
-    window.notifications = [];
-    window.ui = {
-      notifications: {
-        error: (message) => notifications.push(message),
-        warn: (message) => notifications.push(message),
-        info: (message) => notifications.push(message),
-      },
-    };
-    window.foundry = {
-      applications: {
-        api: {
-          ApplicationV2: class {
-            constructor() {
-              this.element = document.querySelector("#app");
-            }
-            async render() {
-              this.element.innerHTML = await this._renderHTML();
-              this._onRender({}, {});
-              return this;
-            }
-            _onRender() {}
+  <body class="game">
+    <div id="app" class="application qc-app">
+      <div class="window-content"></div>
+    </div>
+    <script type="module">
+      import { NOATORA_CAMPAIGN, clone } from "/src/data.mjs";
+      import { enrichScenes } from "/src/campaign-document.mjs";
+      import { prepareNoatora } from "/src/noatora-preparation.mjs";
+      import { saveCampaigns } from "/src/store.mjs";
+      window.notifications = [];
+      window.ui = {
+        notifications: {
+          error: (message) => notifications.push(message),
+          warn: (message) => notifications.push(message),
+          info: (message) => notifications.push(message),
+        },
+        controls: {
+          controls: {
+            effects: {
+              name: "effects",
+              tools: {
+                "particle-effects": {
+                  name: "particle-effects",
+                  onChange: () => {
+                    window.fxEditor = {
+                      kind: "particles",
+                      mapId: canvas.scene.id,
+                    };
+                  },
+                },
+                filters: {
+                  name: "filters",
+                  onChange: () => {
+                    window.fxEditor = {
+                      kind: "filters",
+                      mapId: canvas.scene.id,
+                    };
+                  },
+                },
+              },
+            },
           },
         },
-      },
-    };
-    const collection = (values) => {
-      values.get = (id) => values.find((value) => value.id === id);
-      return values;
-    };
-    const actor = {
-      id: "replacement",
-      uuid: "Actor.replacement",
-      documentName: "Actor",
-      name: "Guardião substituto",
-      img: "",
-      visible: true,
-    };
-    window.game = {
-      user: { isGM: true },
-      journal: [],
-      actors: collection([actor]),
-      folders: [{ id: "maps", name: "Noátorá", type: "Scene" }],
-      scenes: collection([
+      };
+      window.foundry = {
+        applications: {
+          apps: {
+            ImagePopout: class {
+              constructor(options) {
+                this.options = options;
+              }
+              render() {
+                window.openedImage = this.options;
+                return this;
+              }
+              shareImage() {
+                window.sharedImage = this.options;
+              }
+            },
+            FilePicker: {
+              implementation: class {
+                constructor(options) {
+                  this.options = options;
+                }
+                browse() {
+                  this.options.callback(
+                    window.nextPickedImage || "/assets/viagem-estranha.svg",
+                  );
+                }
+              },
+            },
+          },
+          api: {
+            ApplicationV2: class {
+              constructor() {
+                this.element = document.querySelector("#app");
+              }
+              async render() {
+                this.element.querySelector(".window-content").innerHTML =
+                  await this._renderHTML();
+                this._onRender({}, {});
+                return this;
+              }
+              _onRender() {}
+            },
+          },
+        },
+      };
+      const collection = (rows) => {
+        rows.get = (id) => rows.find((row) => row.id === id);
+        return rows;
+      };
+      const thumb = "/assets/viagem-estranha.svg";
+      window.documents = [
         {
-          id: "entrance",
-          name: "Entrada de Noátorá",
-          folder: { id: "maps", name: "Noátorá" },
-          view: async () => {
-            window.openedMap = "entrance";
+          id: "replacement",
+          uuid: "Actor.replacement",
+          documentName: "Actor",
+          type: "npc",
+          name: "Guardião substituto",
+          img: thumb,
+          visible: true,
+        },
+        {
+          uuid: "Compendium.skyfall.monsters.Actor.lobo",
+          documentName: "Actor",
+          type: "monster",
+          name: "Lobo",
+          img: thumb,
+          visible: true,
+        },
+        {
+          uuid: "Compendium.skyfall.equipment.Item.potion",
+          documentName: "Item",
+          type: "consumable",
+          name: "Poção de cura",
+          img: thumb,
+          visible: true,
+        },
+      ];
+      window.quest = {
+        id: "q1",
+        name: "Uma viagem estranha",
+        splash: thumb,
+        description: "Objetivos conhecidos.",
+        playernotes: "Vamos procurar nas galerias.",
+        tasks: [{ uuidv4: "t1", name: "Explorar a entrada", completed: false }],
+        save: async () => {
+          window.questSaves = (window.questSaves || 0) + 1;
+          return "q1";
+        },
+      };
+      const makeMap = (id, name, folder) => ({
+        id,
+        name,
+        folder,
+        thumb,
+        getFlag: (scope, key) =>
+          scope === "fxmaster" && key === "effects" && window.fxActive?.[id]
+            ? { [`apiPreset_${window.fxActive[id]}_p0`]: {} }
+            : {},
+        view: async () => {
+          window.openedMap = id;
+          canvas.scene = game.scenes.get(id);
+        },
+      });
+      const folders = [
+        { id: "root", name: "Mapas Teste", type: "Scene" },
+        { id: "noatora", name: "Noa Torá", type: "Scene", folder: "root" },
+        { id: "lower", name: "Galerias", type: "Scene", folder: "noatora" },
+        { id: "arcane", name: "Arcane", type: "Scene" },
+      ];
+      window.game = {
+        user: { isGM: true },
+        journal: [],
+        actors: collection([documents[0]]),
+        items: collection([]),
+        folders,
+        packs: [
+          {
+            documentName: "Actor",
+            collection: "skyfall.monsters",
+            visible: true,
+            metadata: { system: "skyfall", label: "Monstros Skyfall" },
+            getIndex: async () => [
+              { _id: "lobo", name: "Lobo", type: "monster", img: thumb },
+            ],
+          },
+          {
+            documentName: "Item",
+            collection: "skyfall.equipment",
+            visible: true,
+            metadata: { system: "skyfall", label: "Equipamento Skyfall" },
+            getIndex: async () => [
+              {
+                _id: "potion",
+                name: "Poção de cura",
+                type: "consumable",
+                img: thumb,
+              },
+            ],
+          },
+        ],
+        scenes: collection([
+          makeMap("entrance", "01", folders[1]),
+          makeMap("lower", "02", folders[2]),
+          makeMap("arcane-map", "Arcane exterior", folders[3]),
+        ]),
+        modules: new Map([
+          ["fxmaster", { active: true }],
+          [
+            "forien-quest-log",
+            {
+              active: true,
+              public: {
+                QuestAPI: {
+                  DB: { getAllQuests: () => [quest] },
+                  open: () => {
+                    window.openedQuest = true;
+                  },
+                },
+              },
+            },
+          ],
+        ]),
+      };
+      window.canvas = { scene: game.scenes[0] };
+      window.fxActive = {};
+      window.fxPlays = [];
+      window.FXMASTER = {
+        api: {
+          presets: {
+            listValid: () => ["fog", "embers"],
+            listActive: ({ scene }) =>
+              fxActive[scene.id] ? [fxActive[scene.id]] : [],
+            play: async (name, { scene }) => {
+              fxPlays.push({ name, mapId: scene.id });
+              fxActive[scene.id] = name;
+            },
+            stop: async (name, { scene }) => {
+              delete fxActive[scene.id];
+            },
           },
         },
-      ]),
-      modules: new Map(),
-    };
-    window.fromUuid = async (uuid) => (uuid === actor.uuid ? actor : null);
-    window.JournalEntry = {
-      create: async (data) => {
-        const doc = {
-          ...data,
-          getFlag: (scope, key) => data.flags[scope]?.[key],
-          pages: data.pages.map((page, index) => ({
-            ...page,
-            id: `p${index}`,
-            getFlag: (scope, key) => page.flags[scope]?.[key],
-          })),
-          update: async (update) => {
-            doc.name = update.name;
-          },
-          updateEmbeddedDocuments: async (type, updates) => {
-            for (const update of updates)
-              Object.assign(
-                doc.pages.find((page) => page.id === update._id),
-                update,
-              );
-          },
-        };
-        game.journal.push(doc);
-        return doc;
-      },
-    };
-    const material = await fetch("/campanhas/noatora-a-garra-ausente.md").then(
-      (response) => response.text(),
-    );
-    const campaign = enrichScenes(clone(NOATORA_CAMPAIGN), material);
-    campaign.original.material = material;
-    campaign.working.material = material;
-    await saveCampaigns(game, [campaign]);
-    const { CampaignsApp } = await import("/src/app.mjs");
-    window.app = new CampaignsApp();
-    await app.render();
-    window.fixtureReady = true;
-  </script>
+      };
+      window.fromUuid = async (uuid) =>
+        documents.find((row) => row.uuid === uuid) || null;
+      window.JournalEntry = {
+        create: async (data) => {
+          const doc = {
+            ...data,
+            getFlag: (scope, key) => data.flags[scope]?.[key],
+            pages: data.pages.map((page, index) => ({
+              ...page,
+              id: `page-${index}`,
+              getFlag: (scope, key) => page.flags[scope]?.[key],
+            })),
+            update: async (update) => {
+              doc.name = update.name;
+            },
+            updateEmbeddedDocuments: async (type, updates) => {
+              for (const update of updates)
+                Object.assign(
+                  doc.pages.find((page) => page.id === update._id),
+                  update,
+                );
+            },
+          };
+          game.journal.push(doc);
+          return doc;
+        },
+      };
+      const material = await fetch(
+        "/campanhas/noatora-a-garra-ausente.md",
+      ).then((response) => response.text());
+      const campaign = prepareNoatora(
+        enrichScenes(clone(NOATORA_CAMPAIGN), material),
+      );
+      campaign.original.material = material;
+      campaign.working.material = material;
+      await saveCampaigns(game, [campaign]);
+      const { CampaignsApp } = await import("/src/app.mjs");
+      window.app = new CampaignsApp();
+      await app.render();
+      window.fixtureReady = true;
+    </script>
+  </body>
 </html>
