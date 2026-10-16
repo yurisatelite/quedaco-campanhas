@@ -104,7 +104,7 @@ function sceneLibrary(app, campaign, maps) {
         ["Já nos mapas", placed, false],
       ]
     : [["Ordem das cenas", () => true, true]];
-  return `<section class="qc-scene-library" data-map-drop="" aria-label="Cenas da campanha"><header><div><small>CENAS DA CAMPANHA</small><h3>${campaign.scenes.length} cena(s)</h3></div>${button("new-scene", "+ Cena")}</header>${campaign.usesMaps ? "<p>Solte uma cena aqui para retirá-la do mapa.</p>" : ""}${groups
+  return `<section class="qc-scene-library" data-map-drop="" aria-label="Cenas da campanha"><header><div><small>CENAS DA CAMPANHA</small><h3>${campaign.scenes.length} cena(s)</h3></div>${button("new-scene", campaign.usesMaps ? "+ Interlúdio" : "+ Cena")}</header>${campaign.usesMaps ? "<p>Crie cenas de mapa no botão do mapa correspondente. Aqui ficam cenas sem mapa e interlúdios de imagem.</p>" : ""}${groups
     .map(([label, filter, open]) => {
       const count = campaign.scenes.filter(filter).length;
       if (!count && label === "Interlúdios com imagem") return "";

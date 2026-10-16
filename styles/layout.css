@@ -1,0 +1,698 @@
+/*
+ * QUEDAÇO - Campanhas 0.4.1
+ * Camada de layout responsivo. Mantém a identidade visual de campaigns.css,
+ * mas centraliza as regras estruturais e evita correções dependentes da ordem.
+ */
+
+.qc-app .qc-shell,
+.qc-app .qc-shell * {
+  box-sizing: border-box;
+}
+
+.qc-app .qc-shell {
+  --qc-gap-1: 4px;
+  --qc-gap-2: 8px;
+  --qc-gap-3: 12px;
+  --qc-map: #4f9abd;
+  --qc-scene: #61aa8e;
+  --qc-pending: #ca914f;
+  --qc-panel: #14232d;
+  --qc-panel-2: #192e39;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+}
+
+.qc-app .qc-shell > * {
+  min-width: 0;
+}
+
+.qc-app .qc-shell :is(h1, h2, h3, h4, p, strong, small, span, label) {
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.qc-app .qc-shell button {
+  width: fit-content;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.qc-app .qc-shell :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Cabeçalho e configuração da campanha */
+.qc-app .qc-header {
+  display: grid;
+  grid-template-columns: auto 100px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--qc-gap-3);
+}
+
+.qc-app .qc-header > div {
+  min-width: 0;
+}
+
+.qc-app .qc-cover {
+  width: 100px;
+  max-width: 100%;
+}
+
+.qc-app .qc-toolbar {
+  display: grid;
+  grid-template-columns: max-content minmax(220px, 340px) minmax(160px, 1fr);
+  align-items: end;
+  gap: var(--qc-gap-3);
+}
+
+.qc-app .qc-toolbar > .qc-field {
+  width: auto;
+  max-width: none;
+}
+
+.qc-app .qc-map-mode,
+.qc-app .qc-breadcrumb {
+  min-width: 0;
+}
+
+.qc-app .qc-map-mode > div,
+.qc-app .qc-actions,
+.qc-app .qc-row-actions,
+.qc-app .qc-map-tile-actions,
+.qc-app .qc-quest-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--qc-gap-1);
+}
+
+/* Quadro horizontal: mapa contém cenas; cenas nunca contêm mapas. */
+.qc-app .qc-board {
+  min-width: 0;
+  padding: 10px;
+}
+
+.qc-app .qc-board > header {
+  align-items: center;
+}
+
+.qc-app .qc-board-grid {
+  display: flex;
+  align-items: stretch;
+  gap: var(--qc-gap-2);
+  width: 100%;
+  min-width: 0;
+  padding: 0 0 var(--qc-gap-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+  scroll-snap-type: x proximity;
+}
+
+.qc-app .qc-board-map {
+  flex: 0 0 clamp(280px, 30vw, 350px);
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  align-content: start;
+  gap: var(--qc-gap-2);
+  min-width: 0;
+  min-height: 154px;
+  padding: var(--qc-gap-2);
+  border-color: var(--qc-map);
+  background: #153040;
+  scroll-snap-align: start;
+}
+
+.qc-app .qc-board-map.is-active {
+  border-color: #a2ddc9;
+  box-shadow: inset 0 0 0 1px rgba(162, 221, 201, 0.35);
+}
+
+.qc-app .qc-board-thumb {
+  grid-column: 1;
+  grid-row: 1 / 4;
+  align-self: stretch;
+  min-height: 132px;
+  aspect-ratio: auto;
+}
+
+.qc-app .qc-board-map > header,
+.qc-app .qc-board-scenes,
+.qc-app .qc-board-actions {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.qc-app .qc-board-map > header {
+  grid-row: 1;
+}
+
+.qc-app .qc-board-map > header strong {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.qc-app .qc-board-scenes {
+  grid-row: 2;
+  align-content: start;
+  max-height: 112px;
+  overflow-y: auto;
+}
+
+.qc-app .qc-shell .qc-board-scenes button {
+  width: 100%;
+  border-color: var(--qc-scene);
+  background: #173b31;
+}
+
+.qc-app .qc-board-actions {
+  grid-row: 3;
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: var(--qc-gap-1);
+}
+
+.qc-app .qc-shell .qc-board-actions button {
+  width: auto;
+  flex: 1 1 52px;
+  padding-inline: 6px;
+}
+
+.qc-app .qc-board-empty {
+  width: 100%;
+}
+
+/* Corpo principal */
+.qc-app .qc-main {
+  flex: 1 0 520px;
+  display: grid;
+  grid-template-columns: minmax(310px, 0.62fr) minmax(440px, 1.38fr);
+  align-items: stretch;
+  gap: var(--qc-gap-3);
+  min-width: 0;
+  min-height: 520px;
+  overflow: hidden;
+}
+
+.qc-app :is(.qc-scenes, .qc-detail) {
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.qc-app .qc-scenes > header,
+.qc-app .qc-scene-library > header,
+.qc-app .qc-scene-header,
+.qc-app :is(.qc-fx, .qc-resource-panel) > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--qc-gap-2);
+}
+
+/* Galeria de mapas e árvore de pastas */
+.qc-app .qc-map-library,
+.qc-app .qc-scene-library {
+  min-width: 0;
+}
+
+.qc-app .qc-folder-content,
+.qc-app .qc-map-gallery {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--qc-gap-2);
+}
+
+.qc-app .qc-folder-node {
+  grid-column: auto;
+  min-width: 0;
+}
+
+.qc-app .qc-folder-root > header,
+.qc-app .qc-folder-node > summary {
+  min-width: 0;
+}
+
+.qc-app .qc-folder-root > header strong,
+.qc-app .qc-folder-node > summary strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qc-app .qc-map-tile {
+  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  align-items: start;
+}
+
+.qc-app .qc-map-tile > img {
+  grid-column: 1;
+  grid-row: 1 / 4;
+  width: 84px;
+  height: 76px;
+}
+
+.qc-app .qc-map-tile > :is(strong, small, .qc-map-tile-actions) {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.qc-app .qc-map-tile > strong {
+  grid-row: 1;
+}
+
+.qc-app .qc-map-tile > small {
+  grid-row: 2;
+}
+
+.qc-app .qc-map-tile-actions {
+  grid-row: 3;
+}
+
+.qc-app .qc-map-tile-actions button {
+  flex: 1 1 62px;
+}
+
+.qc-app .qc-map-tile-actions [data-action="assign-map"] {
+  flex-basis: 100%;
+}
+
+/* Biblioteca: verde para cenas, âmbar para pendências. */
+.qc-app .qc-library-group {
+  min-width: 0;
+}
+
+.qc-app .qc-library-group > summary {
+  color: #d7e7ed;
+}
+
+.qc-app .qc-library-group:first-of-type > summary {
+  color: #f0c890;
+}
+
+.qc-app .qc-library-scene {
+  min-width: 0;
+}
+
+.qc-app .qc-shell .qc-library-main {
+  width: 100%;
+  border-color: #477563;
+  background: #18372f;
+}
+
+.qc-app .qc-library-main strong {
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.qc-app .qc-place {
+  max-width: 112px;
+}
+
+.qc-app .qc-library-move {
+  display: flex;
+  flex-direction: column;
+}
+
+.qc-app .qc-shell .qc-library-move button {
+  width: 32px;
+  flex: 1 1 28px;
+}
+
+/* Detalhes e edição */
+.qc-app .qc-detail > *,
+.qc-app .qc-tab-panel,
+.qc-app .qc-scene-editor,
+.qc-app .qc-resource-panel,
+.qc-app .qc-quest-panel {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.qc-app .qc-summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--qc-gap-1);
+}
+
+.qc-app .qc-assigned-maps {
+  grid-template-columns: 1fr;
+}
+
+.qc-app .qc-assigned-maps article {
+  grid-template-columns: 128px minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.qc-app .qc-assigned-maps article > div {
+  min-width: 0;
+}
+
+.qc-app .qc-assigned-maps img {
+  height: 100%;
+  min-height: 82px;
+}
+
+.qc-app .qc-input-action,
+.qc-app .qc-roster-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--qc-gap-2);
+}
+
+.qc-app .qc-input-action > :is(input, select),
+.qc-app .qc-roster-add > :is(input, select) {
+  width: 100%;
+}
+
+.qc-app .qc-tabs {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: var(--qc-gap-1);
+}
+
+.qc-app .qc-tabs button {
+  width: auto;
+  flex: 1 1 145px;
+  min-height: 38px;
+}
+
+.qc-app .qc-tab-panel {
+  display: block;
+}
+
+.qc-app .qc-fields-row,
+.qc-app .qc-suggestion-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  gap: var(--qc-gap-3);
+}
+
+.qc-app .qc-suggestion-fields .qc-field:nth-child(2) {
+  grid-column: auto;
+}
+
+.qc-app .qc-role-list article {
+  display: grid;
+  grid-template-columns: minmax(150px, auto) minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: var(--qc-gap-2);
+}
+
+.qc-app .qc-role-list article > small {
+  min-width: 0;
+}
+
+.qc-app .qc-roster li {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--qc-gap-2);
+}
+
+.qc-app .qc-roster img {
+  width: 42px;
+  height: 42px;
+}
+
+.qc-app .qc-quantity-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--qc-gap-1);
+  white-space: nowrap;
+}
+
+.qc-app .qc-quantity-controls b {
+  min-width: 20px;
+  text-align: center;
+}
+
+.qc-app .qc-shell .qc-quantity-controls button {
+  width: 30px;
+  min-width: 30px;
+  padding-inline: 4px;
+}
+
+.qc-app .qc-overview-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+
+.qc-app .qc-overview-card {
+  min-width: 0;
+}
+
+.qc-app .qc-material {
+  overflow-x: auto;
+}
+
+.qc-app .qc-material table {
+  min-width: 520px;
+}
+
+/* Planejamento visual do mapa */
+.qc-app .qc-review-header,
+.qc-app .qc-area-card > header {
+  flex-wrap: wrap;
+}
+
+.qc-app .qc-draw-toolbar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--qc-gap-2);
+}
+
+.qc-app .qc-draw-toolbar label {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.qc-app .qc-draw-toolbar > button {
+  flex: 0 1 auto;
+}
+
+.qc-app .qc-draw-toolbar > small {
+  flex: 1 0 100%;
+}
+
+/* Tela de seleção */
+.qc-app .qc-campaign-list,
+.qc-app .qc-campaign-list > li,
+.qc-app .qc-campaign-row {
+  min-width: 0;
+}
+
+.qc-app .qc-shell .qc-campaign-row {
+  grid-template-columns: 144px minmax(0, 1fr);
+}
+
+@media (max-width: 960px) {
+  .qc-app .qc-toolbar {
+    grid-template-columns: max-content minmax(200px, 1fr);
+  }
+
+  .qc-app .qc-breadcrumb {
+    grid-column: 1 / -1;
+  }
+
+  .qc-app .qc-main {
+    grid-template-columns: minmax(270px, 0.72fr) minmax(360px, 1.28fr);
+  }
+
+  .qc-app .qc-role-list article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .qc-app .qc-role-list article > small {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 760px) {
+  .qc-app .qc-shell {
+    padding: 10px;
+    overflow-y: auto;
+  }
+
+  .qc-app .qc-main {
+    display: grid;
+    grid-template-columns: 1fr;
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .qc-app :is(.qc-scenes, .qc-detail) {
+    min-height: 360px;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .qc-app .qc-scenes {
+    order: 1;
+  }
+
+  .qc-app .qc-detail {
+    order: 2;
+  }
+
+  .qc-app .qc-board-map {
+    flex-basis: min(330px, calc(100vw - 52px));
+  }
+}
+
+@media (max-width: 560px) {
+  .qc-app .qc-shell {
+    padding: var(--qc-gap-2);
+    gap: var(--qc-gap-2);
+  }
+
+  .qc-app .qc-header {
+    grid-template-columns: auto 64px minmax(0, 1fr);
+    gap: var(--qc-gap-2);
+  }
+
+  .qc-app .qc-cover {
+    width: 64px;
+    height: 56px;
+  }
+
+  .qc-app .qc-header h1 {
+    font-size: 19px;
+  }
+
+  .qc-app .qc-toolbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .qc-app .qc-breadcrumb {
+    grid-column: auto;
+  }
+
+  .qc-app .qc-map-mode > div > button {
+    flex: 1 1 120px;
+  }
+
+  .qc-app .qc-board > header > small {
+    flex-basis: 100%;
+  }
+
+  .qc-app .qc-board-map {
+    grid-template-columns: 92px minmax(0, 1fr);
+    flex-basis: calc(100vw - 44px);
+  }
+
+  .qc-app .qc-board-thumb {
+    min-height: 124px;
+  }
+
+  .qc-app .qc-map-tile {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .qc-app .qc-map-tile > img {
+    width: 72px;
+    height: 68px;
+  }
+
+  .qc-app .qc-library-main {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .qc-app .qc-place {
+    grid-column: 2;
+    max-width: 100%;
+    justify-self: start;
+  }
+
+  .qc-app .qc-assigned-maps article,
+  .qc-app .qc-shell .qc-campaign-row {
+    grid-template-columns: 1fr;
+  }
+
+  .qc-app .qc-assigned-maps img,
+  .qc-app .qc-campaign-row img {
+    width: 100%;
+    height: 120px;
+  }
+
+  .qc-app .qc-input-action,
+  .qc-app .qc-roster-add {
+    grid-template-columns: 1fr;
+  }
+
+  .qc-app .qc-input-action button,
+  .qc-app .qc-roster-add button {
+    width: 100%;
+  }
+
+  .qc-app .qc-roster li {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
+
+  .qc-app .qc-quantity-controls {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .qc-app .qc-role-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .qc-app .qc-role-list article > small {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-height: 680px) and (min-width: 761px) {
+  .qc-app .qc-shell {
+    overflow-y: auto;
+  }
+
+  .qc-app .qc-main {
+    flex-basis: 440px;
+    min-height: 440px;
+  }
+
+  .qc-app .qc-board-map {
+    min-height: 138px;
+  }
+
+  .qc-app .qc-board-thumb {
+    min-height: 116px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qc-app .qc-shell *,
+  .qc-app .qc-shell *::before,
+  .qc-app .qc-shell *::after {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}

@@ -157,6 +157,24 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       signal,
     });
     root.addEventListener(
+      "keydown",
+      (event) => {
+        const tab = event.target.closest?.('.qc-tabs [role="tab"]');
+        if (!tab || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        const tabs = [...tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')];
+        const current = tabs.indexOf(tab);
+        const next = event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? tabs.length - 1
+            : (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+        event.preventDefault();
+        tabs[next]?.click();
+        requestAnimationFrame(() => this.element?.querySelector(`.qc-tabs [data-tab="${tabs[next]?.dataset.tab}"]`)?.focus());
+      },
+      { signal },
+    );
+    root.addEventListener(
       "pointerdown",
       (event) => void this.mapPointerDown(event),
       { signal },
@@ -757,8 +775,9 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           if (scene) {
             area.sceneId = scene.id;
             scene.presentation = "map";
-            if (!scene.mapSceneIds.includes(mapId))
-              scene.mapSceneIds.push(mapId);
+            scene.mapSceneIds = campaign.usesMaps
+              ? [mapId]
+              : [...new Set([...scene.mapSceneIds, mapId])];
             scene.mapAreaRefs ??= [];
             if (!scene.mapAreaRefs.some((row) => row.areaId === area.id))
               scene.mapAreaRefs.push({ mapId, areaId: area.id });
@@ -1272,8 +1291,10 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           (entry) => entry.id === button.dataset.scene,
         );
         if (scene) scene.presentation = "map";
-        if (scene && !scene.mapSceneIds.includes(mapId))
-          scene.mapSceneIds.push(mapId);
+        if (scene)
+          scene.mapSceneIds = campaign.usesMaps
+            ? [mapId]
+            : [...new Set([...scene.mapSceneIds, mapId])];
       });
     }
     if (action === "remove-map")

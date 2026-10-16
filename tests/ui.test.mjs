@@ -97,7 +97,7 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
     assert.ok((await page.locator(".qc-material h3").count()) > 0);
     assert.ok((await page.locator(".qc-overview-card").count()) >= 3);
     await page.screenshot({
-      path: resolve(root, "dist", "preview-overview-0.4.0.png"),
+      path: resolve(root, "dist", "preview-overview-0.4.1.png"),
     });
     assert.equal(
       await page.locator(".qc-material").evaluate((el) => el.innerText.includes("schema:")),
@@ -397,24 +397,36 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
         .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
     );
     await page.locator(".qc-detail").evaluate((el) => (el.scrollTop = 0));
-    for (const width of [1180, 900]) {
-      await page.setViewportSize({ width, height: 900 });
+    for (const [width, height] of [[1180, 900], [900, 760], [720, 800], [560, 720], [1180, 620]]) {
+      await page.setViewportSize({ width, height });
+      assert.ok(
+        await page
+          .locator(".qc-shell")
+          .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
+      );
       assert.ok(
         await page
           .locator(".qc-detail")
           .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
       );
-      assert.ok(
-        await page
-          .locator(".qc-scenes")
-          .evaluate((el) => el.scrollWidth <= el.clientWidth + 1),
-      );
+      assert.ok(await page.evaluate(() => [...document.querySelectorAll(".qc-shell button")].every((button) => button.scrollWidth <= button.clientWidth + 2 && button.scrollHeight <= button.clientHeight + 2)));
+      if (width === 560)
+        await page.screenshot({
+          path: resolve(root, "dist", "preview-responsive-0.4.1.png"),
+          fullPage: true,
+        });
     }
     await page.setViewportSize({ width: 1180, height: 900 });
     await page.screenshot({
-      path: resolve(root, "dist", "preview-0.4.0.png"),
+      path: resolve(root, "dist", "preview-0.4.1.png"),
       fullPage: true,
     });
+
+    const selectedTab = page.locator('.qc-tabs [role="tab"][aria-selected="true"]');
+    await selectedTab.focus();
+    await selectedTab.press("ArrowRight");
+    await wait();
+    assert.equal(await page.locator('.qc-tabs [role="tab"][aria-selected="true"]').getAttribute("data-tab"), "mapa");
 
     await page.evaluate(async () => {
       await app.mutate((campaign) => {
@@ -546,7 +558,7 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
     assert.equal(await page.locator(".qc-area-marker").count(), 3);
     assert.equal(await page.locator(".qc-review-canvas .qc-area-shape").count(), 2);
     await page.screenshot({
-      path: resolve(root, "dist", "preview-map-review-0.4.0.png"),
+      path: resolve(root, "dist", "preview-map-review-0.4.1.png"),
       fullPage: true,
     });
     await page.locator(".qc-area-card").first().locator('[data-action="area-scene"]').click();
@@ -567,7 +579,7 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       ),
     );
     await page.screenshot({
-      path: resolve(root, "dist", "preview-planner-0.4.0.png"),
+      path: resolve(root, "dist", "preview-planner-0.4.1.png"),
       fullPage: true,
     });
 
@@ -604,7 +616,7 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       ),
     );
     await page.screenshot({
-      path: resolve(root, "dist", "preview-picker-0.4.0.png"),
+      path: resolve(root, "dist", "preview-picker-0.4.1.png"),
       fullPage: true,
     });
     assert.deepEqual(errors, []);
