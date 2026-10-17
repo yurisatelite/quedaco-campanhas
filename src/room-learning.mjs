@@ -1,4 +1,5 @@
 import { normalizeName } from "./names.mjs";
+import { pointInArea } from './map-recognition.mjs';
 
 export const AREA_TYPES = Object.freeze([
   ["exploration", "Exploração"],
@@ -197,6 +198,11 @@ export function suggestArea(campaign, area, campaigns = [campaign]) {
     suggestion.challenge = [suggestion.challenge, ...cues].filter(Boolean).join("\n\n");
   if (area.visualDescription)
     suggestion.narration = `${suggestion.narration}\n\nConsidere na descrição: ${clean(area.visualDescription)}`;
+  const expectation = [campaign.planning?.expectation,
+    Object.values(campaign.mapReviews || {}).find((r) => r.points?.some((p) => p.id === area.id))?.expectation,
+    area.expectation].filter(Boolean).join('\n');
+  if (expectation) suggestion.narrativeFunction += `\n\nOrientação da Mestra: ${clean(expectation)}`;
+  if (area.type === 'exploration' && !accepted) suggestion.secret = 'Revelação a definir pela Mestra; nenhuma conexão secreta foi inferida.';
   return suggestion;
 }
 
@@ -264,8 +270,24 @@ export function areaCentroid(area) {
   const vertices = area.vertices?.length
     ? area.vertices
     : [{ x: area.x || 0, y: area.y || 0 }];
-  return {
+  const center = {
     x: vertices.reduce((total, point) => total + point.x, 0) / vertices.length,
     y: vertices.reduce((total, point) => total + point.y, 0) / vertices.length,
   };
+  if (area.shape !== 'polygon' || vertices.length < 3 || pointInArea(center, area)) return center;
+  const ys = [...new Set(vertices.map((v) => v.y))].sort((a, b) => a - b);
+  let best = null;
+  for (let i = 1; i < ys.length; i++) {
+    const y = (ys[i - 1] + ys[i]) / 2, intersections = [];
+    for (let j = 0; j < vertices.length; j++) {
+      const a = vertices[j], b = vertices[(j + 1) % vertices.length];
+      if ((a.y > y) !== (b.y > y)) intersections.push(a.x + (y - a.y) * (b.x - a.x) / (b.y - a.y));
+    }
+    intersections.sort((a, b) => a - b);
+    for (let j = 1; j < intersections.length; j += 2) {
+      const width = intersections[j] - intersections[j - 1];
+      if (!best || width > best.width) best = { x: (intersections[j] + intersections[j - 1]) / 2, y, width };
+    }
+  }
+  return best ? { x: best.x, y: best.y } : vertices[0];
 }

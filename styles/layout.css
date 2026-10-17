@@ -496,6 +496,63 @@
 }
 
 /* Tela de seleção */
+.qc-app .qc-planning {
+  margin-top: 16px;
+}
+
+.qc-app .qc-recognition-panel {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid #4f9abd;
+  border-radius: 8px;
+  background: #162e3c;
+}
+.qc-app .qc-recognition-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.qc-app .qc-recognition-state {
+  padding: 3px 8px;
+  border: 1px solid #ca914f;
+  border-radius: 12px;
+  font-size: 12px;
+}
+.qc-app .qc-recognition-inventory {
+  display: grid;
+  gap: 8px;
+  padding: 8px 0;
+  list-style: none;
+}
+.qc-app .qc-recognition-inventory li {
+  display: grid;
+  gap: 3px;
+}
+.qc-app .qc-prepared-room {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #477563;
+  border-radius: 8px;
+  background: #18342e;
+}
+.qc-app .qc-preserve-lines {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+
+.qc-app .qc-planning[open] > * + * {
+  margin-top: 10px;
+}
+
+.qc-app .qc-planning .qc-area-card {
+  display: grid;
+  gap: 8px;
+}
+
 .qc-app .qc-campaign-list,
 .qc-app .qc-campaign-list > li,
 .qc-app .qc-campaign-row {

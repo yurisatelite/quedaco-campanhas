@@ -1,3 +1,4 @@
+import { normalizePlanning } from './campaign-planner.mjs';
 export const MODULE_ID = "quedaco-campanhas";
 export const CAMPAIGN_SCHEMA = "quedaco-campanhas/v3";
 export const DEFAULT_COVER =
@@ -296,6 +297,7 @@ export function normalizeCampaign(value) {
         ? source.working
         : { revision: 1, material: text(source.material || original.material) };
   const result = {
+    planning: normalizePlanning(source.planning),
     schema: CAMPAIGN_SCHEMA,
     id: text(source.id, crypto.randomUUID?.() || `campaign-${Date.now()}`),
     title: ["Noátorá: A Garra Ausente", "Noátora: A Garra Ausente"].includes(
@@ -337,6 +339,8 @@ export function normalizeCampaign(value) {
         id,
         {
           notes: text(review?.notes),
+          expectation: text(review?.expectation),
+          recognitionWarnings: (Array.isArray(review?.recognitionWarnings) ? review.recognitionWarnings : []).map(String),
           points: (Array.isArray(review?.points) ? review.points : []).map(
             (point, index) => ({
               id: text(point?.id, `point-${index + 1}`),
@@ -368,6 +372,12 @@ export function normalizeCampaign(value) {
               title: text(point?.title, "Ponto de interesse"),
               source: text(point?.source),
               sourceId: text(point?.sourceId),
+              recognition: ['candidate', 'confirmed', 'rejected'].includes(point?.recognition) ? point.recognition : 'confirmed',
+              evidence: text(point?.evidence),
+              expectation: text(point?.expectation),
+              editedByGM: Boolean(point?.editedByGM),
+              unknowns: (Array.isArray(point?.unknowns) ? point.unknowns : []).map(String),
+              wallIds: (Array.isArray(point?.wallIds) ? point.wallIds : []).map(String),
               description: text(point?.description),
               visualDescription: text(
                 point?.visualDescription,

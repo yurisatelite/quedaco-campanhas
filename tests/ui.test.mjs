@@ -583,6 +583,63 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       fullPage: true,
     });
 
+    // Motor local: encontra contorno, preserva a área e adiciona sala à cena atual.
+    await tab('mapa');
+    const beforeRecognition = await page.evaluate(() => {
+      const m = game.scenes.get(app.reviewMapId);
+      m.width = 500; m.height = 500;
+      m.walls = [[50, 50, 450, 50], [450, 50, 450, 450], [450, 450, 50, 450], [50, 450, 50, 50]].map((c, i) => ({ id: `wall-${i}`, c, move: 20 }));
+      return { areas: app.campaign.mapReviews[m.id].points.length, scenes: app.campaign.scenes.length };
+    });
+    await page.locator('[data-review-expectation]').fill('Exploração, sem combate neste andar.');
+    await page.locator('[data-action="recognize-map"]').click();
+    await wait();
+    assert.equal(await page.evaluate(() => app.campaign.mapReviews[app.reviewMapId].points.length), beforeRecognition.areas + 1);
+    await page.locator('[data-action="recognize-map"]').click();
+    await wait();
+    assert.equal(await page.evaluate(() => app.campaign.mapReviews[app.reviewMapId].points.length), beforeRecognition.areas + 1);
+    const detected = page.locator('.qc-area-card[data-area^="detected-walls-"]');
+    assert.ok((await detected.innerText()).includes('Área a confirmar'));
+    await detected.locator('[data-action="confirm-area"]').click();
+    await wait();
+    await detected.locator('[data-area-field="title"]').fill('Salão confirmado');
+    await detected.locator('[data-area-field="visualDescription"]').fill('Pilares e pedra quebrada.');
+    await detected.locator('[data-area-field="expectation"]').fill('Quero uma pista sobre os exploradores.');
+    await detected.locator('[data-action="suggest-area"]').click();
+    await wait();
+    assert.ok((await detected.locator('[data-suggestion-field="narrativeFunction"]').inputValue()).includes('Exploração, sem combate'));
+    await detected.locator('[data-action="accept-area"]').click();
+    await wait();
+    await detected.locator('[data-action="apply-area-content"]').click();
+    await wait();
+    assert.equal(await page.evaluate(() => app.campaign.scenes.length), beforeRecognition.scenes);
+    assert.ok(await page.evaluate(() => app.selectedScene.rooms.some((r) => r.name === 'Salão confirmado')));
+    // Corrigir o contorno deve manter o ID e o conteúdo, sem criar outra sala.
+    const stableId = await detected.getAttribute('data-area');
+    await detected.locator('[data-action="redraw-area"]').click();
+    await wait();
+    await page.locator('.qc-review-canvas').scrollIntoViewIfNeeded();
+    const redrawBox = await page.locator('.qc-review-canvas').boundingBox();
+    await page.mouse.move(redrawBox.x + 60, redrawBox.y + 60);
+    await page.mouse.down();
+    await page.mouse.move(redrawBox.x + 210, redrawBox.y + 150);
+    await page.mouse.up();
+    await wait();
+    assert.equal(await detected.getAttribute('data-area'), stableId);
+    assert.equal(await page.evaluate(() => app.campaign.mapReviews[app.reviewMapId].points.length), beforeRecognition.areas + 1);
+    await page.locator('.qc-review-header').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(root, 'dist', 'preview-recognition-0.6.0.png'), fullPage: true });
+    for (const width of [900, 560]) {
+      await page.setViewportSize({ width, height: 800 });
+      assert.ok(await page.locator('.qc-shell').evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
+      assert.ok(await page.locator('.qc-detail').evaluate((el) => el.scrollWidth <= el.clientWidth + 1));
+    }
+    const boardScroll = await page.locator('.qc-board-grid').evaluate((el) => { el.scrollLeft = 120; return el.scrollLeft; });
+    await page.locator('.qc-recognition-panel [data-action="save-map-review"]').click();
+    await wait();
+    assert.equal(await page.locator('.qc-board-grid').evaluate((el) => el.scrollLeft), boardScroll);
+    await page.setViewportSize({ width: 1180, height: 900 });
+
     // Voltar à visão da campanha, à seleção e criar uma campanha nova.
     await page.locator('[data-action="close-scene"]').first().click();
     await wait();
@@ -607,6 +664,21 @@ test("Foundry CSS: pasta visual, narração, recursos automáticos, missão priv
       "Areia e sangue",
     );
     assert.equal(await page.locator(".qc-board").count(), 1);
+    await page.locator('.qc-planning > summary').click();
+    await page.locator('[name="planning-brief"]').fill('Descobrir a origem da energia.');
+    const planningResponse = await page.evaluate(() => ({ campaignId: app.campaign.id, questions: [], proposals: [{ id: 'p1', title: 'Um eco', mapId: '', narration: 'Um som se repete.', elements: [{ id: 'e1', kind: 'pista', text: 'O mesmo eco será ouvido no presente.' }] }] }));
+    await page.locator('[name="planning-result"]').fill(JSON.stringify(planningResponse));
+    await page.locator('[data-action="import-planning"]').click();
+    await wait();
+    assert.equal(await page.locator('[data-proposal="p1"]').count(), 1);
+    await page.locator('[data-action="planning-element"][data-decision="approved"]').click();
+    await wait();
+    await page.locator('[data-action="planning-proposal"][data-decision="approved"]').click();
+    await wait();
+    await page.locator('[data-action="apply-planning"]').click();
+    await wait();
+    assert.ok(await page.evaluate(() => app.campaign.scenes.some((s) => s.id === 'plan-p1' && s.notes.includes('O mesmo eco'))));
+    await page.screenshot({ path: resolve(root, 'dist', 'preview-planning-0.5.0.png'), fullPage: true });
     await page.locator('[data-action="close-campaign"]').click();
     await wait();
     assert.equal(await page.locator(".qc-campaign-row").count(), 2);

@@ -1,5 +1,29 @@
 # Histórico
 
+## 0.6.0 — Motor de salas, expectativas e conteúdo por área
+
+- Reconhecimento local de contornos fechados nas Walls, com divisões por portas e interseções; candidatos aguardam confirmação. Não interpreta objetos desenhados apenas na imagem.
+- Inventário de portas, portas secretas, estados das fechaduras, tokens e parceiros Stairways. Destinos não resolvidos ficam em aberto.
+- Importação de Regions e Drawings com padding/offset, formas curvas e rotações.
+- Expectativas por campanha, mapa e área, exportadas com contexto; campos separados para observações e dúvidas ainda desconhecidas.
+- Confirmação, descarte e redesenho de contornos mantendo IDs e conteúdo. Reanálises preservam correções.
+- Importação de contornos e observações da análise visual feita no chat, com validação de mapas, formas e coordenadas.
+- Perguntas por mapa/sala bloqueiam apenas conteúdo dependente. Perguntas globais conservam bloqueio geral.
+- Conteúdo aprovado de várias salas pode ser adicionado à mesma cena. Fichas/itens aprovados aceitam referência do catálogo e quantidade.
+- Salas preparadas aparecem no resumo privado da cena. Referências de regras ausentes continuam exigindo revisão.
+- Plano de ação e instruções do fluxo incluídos em docs/; compatibilidade mantida com Foundry 13.
+
+## 0.5.0 — Planejamento e aprovação do conjunto de mapas
+
+- Painel privado na visão da campanha para objetivo, guia e respostas de geografia.
+- Exportação do texto, imagens dos mapas da pasta, esquema geral, catálogo e revisões em JSON; nenhuma chamada externa é feita automaticamente.
+- Importação das perguntas antes das propostas, com bloqueio enquanto houver respostas pendentes.
+- Aprovação/rejeição de cada cena e elemento; edição local retorna a parte alterada a pendente.
+- Propostas e elementos aprovados são preservados em novas análises.
+- Cenas aprovadas são adicionadas aos mapas, com referências de Actor/Item preparadas quando disponíveis no catálogo.
+- Contexto revisado de Noátorá disponível por botão: desconhecimento inicial da garra, quatro exploradores, fendas temporais e sinais comparáveis no presente.
+- Leitura visual automática por serviço de IA ainda depende de integração/configuração; o fluxo desta versão usa troca de arquivos.
+
 ## 0.4.0 — Seleção de campanha, quadro de mapas e biblioteca de cenas
 
 - Nova primeira tela **Selecionar campanha**: campanhas empilhadas, cada uma com capa, nome, data (era · ano), descrição curta e contagens.

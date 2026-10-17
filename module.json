@@ -2,10 +2,10 @@
   "id": "quedaco-campanhas",
   "title": "QUEDAÇO - Campanhas",
   "description": "Administrador de campanhas, cenas, mapas e preparação de tokens para Skyfall RPG.",
-  "version": "0.4.1",
+  "version": "0.6.0",
   "url": "https://github.com/yurisatelite/quedaco-campanhas",
   "manifest": "https://github.com/yurisatelite/quedaco-campanhas/releases/latest/download/module.json",
-  "download": "https://github.com/yurisatelite/quedaco-campanhas/releases/download/v0.4.1/quedaco-campanhas-0.4.1.zip",
+  "download": "https://github.com/yurisatelite/quedaco-campanhas/releases/download/v0.6.0/quedaco-campanhas-0.6.0.zip",
   "authors": [{ "name": "Yuri" }],
   "compatibility": { "minimum": "13", "verified": "13", "maximum": "13" },
   "relationships": {

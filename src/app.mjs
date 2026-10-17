@@ -1,4 +1,7 @@
 import { resourceDefinitions } from "./declared-resources.mjs";
+import { detectWallRooms, mergeDetectedAreas } from './map-recognition.mjs';
+import { applyAreaToScene, questionAffects } from './planning-analysis.mjs';
+import { PLANNING_BRIEF, planningPacket, importPlanning, applyPlanning, attachPlanningImages } from './campaign-planner.mjs';
 import {
   areaSceneData,
   learningStats,
@@ -126,11 +129,17 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       scenes: value(".qc-scenes"),
       detail: value(".qc-detail"),
       shell: value(".qc-shell"),
+      board: this.element?.querySelector('.qc-board-grid')?.scrollLeft || 0,
+      panels: [...(this.element?.querySelectorAll('[data-preserve-details]') || [])].filter((el) => el.open).map((el) => el.dataset.preserveDetails),
     };
   }
 
   restoreScroll(state) {
     if (!state) return;
+    const board = this.element?.querySelector('.qc-board-grid');
+    if (board) board.scrollLeft = state.board || 0;
+    for (const panel of this.element?.querySelectorAll('[data-preserve-details]') || [])
+      if ((state.panels || []).includes(panel.dataset.preserveDetails)) panel.open = true;
     for (const [key, selector] of [
       ["scenes", ".qc-scenes"],
       ["detail", ".qc-detail"],
@@ -197,6 +206,8 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       (event) => {
         if (event.target.matches?.(".qc-map-library"))
           this.galleryOpen = event.target.open;
+        if (event.target.matches?.('.qc-planning'))
+          this.planningOpen = event.target.open;
       },
       { signal, capture: true },
     );
@@ -316,6 +327,12 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     const review = (campaign.mapReviews[mapId] ??= { notes: "", points: [] }),
       index = review.points.length + 1,
       first = vertices[0] || { x: 0, y: 0 };
+    if (this.redrawArea?.mapId === mapId) {
+      const area = review.points.find((a) => a.id === this.redrawArea.areaId);
+      if (area) Object.assign(area, { shape, vertices, x: first.x, y: first.y, recognition: 'confirmed', editedByGM: true });
+      this.redrawArea = null;
+      return;
+    }
     review.points.push({
       id: globalThis.crypto?.randomUUID?.() || `area-${Date.now()}`,
       type: this.pointType || "exploration",
@@ -324,6 +341,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       y: first.y,
       vertices,
       title: `Sala ${index}`,
+      recognition: 'confirmed', evidence: 'Área desenhada pela Mestra.', expectation: '', unknowns: [],
       description: "",
       visualDescription: "",
       gmNotes: "",
@@ -596,6 +614,42 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
       const current = target.scenes.find(
         (scene) => scene.id === this.selectedSceneId,
       );
+      const brief = this.element.querySelector('[name="planning-brief"]');
+      if (brief) {
+        target.planning.brief = brief.value;
+        target.planning.expectation = this.element.querySelector('[name="planning-expectation"]')?.value || '';
+        target.planning.guide = this.element.querySelector('[name="planning-guide"]').value;
+        for (const input of this.element.querySelectorAll('[data-planning-answer]')) {
+          const question = target.planning.questions.find((q) => q.id === input.dataset.planningAnswer);
+          if (question && question.answer !== input.value) {
+            question.answer = input.value;
+            for (const p of target.planning.proposals) {
+              if (p.status === 'applied' || !questionAffects(question, p)) continue;
+              p.status = 'pending';
+              for (const e of p.elements) if (e.status === 'approved') e.status = 'pending';
+            }
+          }
+        }
+        for (const card of this.element.querySelectorAll('[data-proposal]')) {
+          const p = target.planning.proposals.find((p) => p.id === card.dataset.proposal);
+          if (!p || p.status === 'applied') continue;
+          const sceneTarget = card.querySelector('[data-proposal-target]');
+          if (sceneTarget && sceneTarget.value !== p.targetSceneId) { p.targetSceneId = sceneTarget.value; p.status = 'pending'; }
+          const narration = card.querySelector('[data-proposal-narration]').value;
+          if (p.narration !== narration) { p.narration = narration; p.status = 'pending'; }
+          for (const input of card.querySelectorAll('[data-proposal-element]')) {
+            const e = p.elements.find((e) => e.id === input.dataset.proposalElement);
+            if (e && e.text !== input.value) { e.text = input.value; e.status = 'pending'; }
+          }
+          for (const element of card.querySelectorAll('[data-planning-element]')) {
+            const e = p.elements.find((e) => e.id === element.dataset.planningElement);
+            if (!e) continue;
+            const reference = element.querySelector('[data-proposal-reference]').value;
+            const quantity = Math.max(1, Math.min(99, Math.floor(Number(element.querySelector('[data-proposal-quantity]').value) || 1)));
+            if (e.reference !== reference || e.quantity !== quantity) { e.reference = reference; e.quantity = quantity; e.status = 'pending'; }
+          }
+        }
+      }
       if (current) {
         for (const input of this.element.querySelectorAll("[data-scene-field]"))
           current[input.dataset.sceneField] = input.value;
@@ -625,6 +679,8 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           notes: "",
           points: [],
         });
+        const expectation = reviewElement.querySelector('[data-review-expectation]');
+        if (expectation) review.expectation = expectation.value;
         review.notes =
           reviewElement.querySelector("[data-review-notes]")?.value || "";
         for (const element of reviewElement.querySelectorAll("[data-area]")) {
@@ -632,8 +688,16 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
             (row) => row.id === element.dataset.area,
           );
           if (point) {
-            for (const input of element.querySelectorAll("[data-area-field]"))
+            const unknowns = element.querySelector('[data-area-unknowns]');
+            if (unknowns) {
+              const next = unknowns.value.split('\n').map((v) => v.trim()).filter(Boolean);
+              if (JSON.stringify(next) !== JSON.stringify(point.unknowns || [])) point.editedByGM = true;
+              point.unknowns = next;
+            }
+            for (const input of element.querySelectorAll("[data-area-field]")) {
+              if ((point[input.dataset.areaField] || '') !== input.value) point.editedByGM = true;
               point[input.dataset.areaField] = input.value;
+            }
             for (const input of element.querySelectorAll(
               "[data-suggestion-field]",
             ))
@@ -664,28 +728,91 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
     const button = event.target.closest?.("[data-action]");
     if (!button) return;
     const action = button.dataset.action;
+    if (action === 'save-planning') return this.mutate(() => {});
+    if (action === 'seed-planning') return this.mutate((c) => { c.planning.brief = PLANNING_BRIEF; });
+    if (action === 'export-planning') {
+      await this.mutate(() => {});
+      const packet = planningPacket(this.campaign, this.mapsForCampaign(), this.catalog.entries);
+      try {
+        await attachPlanningImages(packet, async (path) => {
+          const response = await fetch(path);
+          if (!response.ok) throw Error(`Não foi possível ler a imagem: ${path}`);
+          const blob = await response.blob();
+          if (!blob.type.startsWith('image/')) throw Error(`O arquivo não é uma imagem: ${path}`);
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(Error(`Erro ao ler imagem: ${path}`));
+            reader.readAsDataURL(blob);
+          });
+        });
+      } catch (error) {
+        return ui.notifications.error(error.message);
+      }
+      const url = URL.createObjectURL(new Blob([JSON.stringify(packet, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url; link.download = `${this.campaign.id}-analise.json`; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return;
+    }
+    if (action === 'import-planning') {
+      const text = this.element.querySelector('[name="planning-result"]').value;
+      return this.mutate((c) => importPlanning(c, JSON.parse(text), this.allMaps().map((m) => m.id)));
+    }
+    if (['planning-proposal', 'planning-element', 'apply-planning'].includes(action)) {
+      const id = button.closest('[data-proposal]').dataset.proposal;
+      return this.mutate((c) => {
+        const p = c.planning.proposals.find((row) => row.id === id);
+        if (!p || p.status === 'applied') return;
+        if (action === 'apply-planning') return applyPlanning(c, id, this.catalog.entries);
+        if (action === 'planning-proposal') p.status = button.dataset.decision;
+        else {
+          const e = p.elements.find((row) => row.id === button.dataset.element);
+          if (e) e.status = button.dataset.decision;
+        }
+      });
+    }
     if (action === "review-map")
       return this.mutate(() => {
+        this.redrawArea = null;
         this.reviewMapId = button.dataset.map;
         this.detailTab = "mapa";
         this.pendingVertices = [];
       });
     if (action === "save-map-review") return this.mutate(() => {});
+    if (action === 'redraw-area' || action === 'cancel-redraw') {
+      return this.mutate(() => {
+        this.redrawArea = action === 'redraw-area' ? { mapId: button.closest('[data-review-map]').dataset.reviewMap, areaId: button.dataset.area } : null;
+        this.drawMode = 'rect'; this.rectangleStart = null; this.pendingVertices = [];
+      });
+    }
+    if (action === 'recognize-map' || action === 'recognize-campaign') {
+      const mapId = button.closest('[data-review-map]').dataset.reviewMap;
+      if (action === 'recognize-campaign' && !this.campaign.mapFolderId)
+        return ui.notifications.info('Escolha a pasta de mapas da campanha antes de analisar o conjunto.');
+      const maps = action === 'recognize-campaign' ? this.mapsForCampaign() : [game.scenes.get(mapId)].filter(Boolean);
+      return this.mutate((campaign) => {
+        for (const map of maps) {
+          const review = campaign.mapReviews[map.id] ??= { notes: '', points: [] };
+          const result = detectWallRooms(map);
+          mergeDetectedAreas(review, [...extractFoundryAreas(map), ...result.rooms]);
+          review.recognitionWarnings = result.warnings;
+        }
+      });
+    }
+    if (action === 'confirm-area' || action === 'discard-area') {
+      const mapId = button.closest('[data-review-map]').dataset.reviewMap;
+      return this.mutate((campaign) => {
+        const area = campaign.mapReviews[mapId]?.points.find((p) => p.id === button.dataset.area);
+        if (area) area.recognition = action === 'confirm-area' ? 'confirmed' : 'rejected';
+      });
+    }
     if (action === "import-foundry-areas") {
       const mapId = button.closest("[data-review-map]").dataset.reviewMap,
         map = game.scenes.get(mapId);
       return this.mutate((campaign) => {
         const review = (campaign.mapReviews[mapId] ??= { notes: "", points: [] });
-        for (const imported of extractFoundryAreas(map)) {
-          if (review.points.some((area) => area.sourceId === imported.sourceId))
-            continue;
-          this.addMapArea(campaign, mapId, imported.shape, imported.vertices);
-          Object.assign(review.points.at(-1), {
-            title: imported.title || `Sala ${review.points.length}`,
-            source: imported.source,
-            sourceId: imported.sourceId,
-          });
-        }
+        mergeDetectedAreas(review, extractFoundryAreas(map));
       });
     }
     if (action === "draw-map-area") {
@@ -743,6 +870,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
         "reject-area",
         "area-scene",
         "link-area-scene",
+        "apply-area-content",
         "remove-area",
       ].includes(action)
     ) {
@@ -756,6 +884,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           return;
         }
         if (action === "suggest-area") {
+          if (area.recognition !== 'confirmed') throw Error('Confirme os limites desta área antes de gerar conteúdo.');
           area.suggestion = suggestArea(campaign, area, this.campaigns);
           area.status = "suggested";
           area.feedback = "";
@@ -784,6 +913,14 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           }
           return;
         }
+        if (action === 'apply-area-content') {
+          if (area.feedback !== 'accepted') throw Error('Aprove o conteúdo da sala primeiro.');
+          const scene = campaign.scenes.find((s) => s.id === this.selectedSceneId);
+          if (!scene) throw Error('Escolha uma cena deste mapa primeiro.');
+          applyAreaToScene(campaign, scene, area, mapId);
+          return;
+        }
+        if (!area.sceneId && (area.feedback !== 'accepted' || area.recognition !== 'confirmed')) throw Error('Confirme a área e aprove o conteúdo antes de criar a cena.');
         if (!campaign.scenes.some((row) => row.id === area.sceneId)) {
           if (!Object.values(area.suggestion || {}).some(Boolean))
             area.suggestion = suggestArea(campaign, area, this.campaigns);
@@ -806,7 +943,7 @@ export class CampaignsApp extends foundry.applications.api.ApplicationV2 {
           (row) => row.id === this.selectedSceneId,
         );
         for (const area of areas
-          .filter((row) => row.feedback === "accepted" && !row.sceneId)
+          .filter((row) => row.feedback === "accepted" && row.recognition === 'confirmed' && !row.sceneId)
           .sort((a, b) => (a.y || 0) - (b.y || 0) || (a.x || 0) - (b.x || 0))) {
           const newScene = areaSceneData(area, mapId);
           area.sceneId = newScene.id;

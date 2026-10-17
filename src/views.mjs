@@ -1,4 +1,5 @@
 import { resourcesForScene } from "./declared-resources.mjs";
+import { renderPlanning } from './campaign-planner.mjs';
 import { renderMapReview, areaShape } from "./map-review.mjs";
 import { areaCentroid } from "./room-learning.mjs";
 import { DEFAULT_COVER, SCENE_TYPES } from "./data.mjs";
@@ -263,7 +264,7 @@ function campaignOverview(app, campaign, maps) {
       )
       .join(""),
     "Nenhum token preparado ainda.",
-  )}<section class="qc-overview-block qc-campaign-text"><h3>Texto da campanha</h3><div class="qc-material">${renderMaterial(campaign.working.material)}</div></section>${campaignEditor(campaign)}`;
+  )}${renderPlanning(campaign, app.planningOpen, app.catalog.entries)}<section class="qc-overview-block qc-campaign-text"><h3>Texto da campanha</h3><div class="qc-material">${renderMaterial(campaign.working.material)}</div></section>${campaignEditor(campaign)}`;
 }
 
 function campaignEditor(campaign) {
@@ -319,7 +320,8 @@ function summaryChips(scene, campaign, includeEmpty = false) {
 }
 
 function sceneSummaryPanel(scene, campaign) {
-  return `<section class="qc-scene-summary"><header><small>RESUMO DE PREPARAÇÃO</small><strong>O que existe nesta cena</strong></header>${summaryChips(scene, campaign, true)}</section>`;
+  const rooms = scene.rooms || [];
+  return `<section class="qc-scene-summary"><header><small>RESUMO DE PREPARAÇÃO</small><strong>O que existe nesta cena</strong></header>${summaryChips(scene, campaign, true)}${rooms.length ? `<details class="qc-more"><summary>Salas preparadas nesta cena · ${rooms.length}</summary><div class="qc-area-list">${rooms.map((room) => `<article class="qc-prepared-room"><h3>${esc(room.name)}</h3><p class="qc-preserve-lines">${esc(room.description)}</p>${room.notes ? `<details><summary>Orientação privada da Mestra</summary><p class="qc-preserve-lines">${esc(room.notes)}</p></details>` : ''}</article>`).join('')}</div></details>` : ''}</section>`;
 }
 
 const parentId = (folder) =>
